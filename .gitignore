@@ -15,6 +15,7 @@ intermediates/
 [Dd]ebug/
 [Rr]elease/
 x64/
+!dependencies/**/x64/
 x86/
 [Ww][Ii][Nn]32/
 [Aa][Rr][Mm]/
@@ -212,10 +213,40 @@ dependencies/GLM/doc/
 !dependencies/**/*.md
 
 # GLM headers (REQUIRED - header-only library)
-!dependencies/GLM/glm/**
+!dependencies/GLM/
+!dependencies/GLM/glm/
+!dependencies/GLM/glm/**/*
+!dependencies/GLM/glm/**/*.hpp
+!dependencies/GLM/glm/**/*.h
+!dependencies/GLM/glm/**/*.inl
 !dependencies/GLM/*.txt
 !dependencies/GLM/*.md
 !dependencies/GLM/CMakeLists.txt
+
+# GLFW headers and libraries (REQUIRED)
+!dependencies/GLFW/
+!dependencies/GLFW/include/
+!dependencies/GLFW/include/**/*
+!dependencies/GLFW/lib-vc2022/
+!dependencies/GLFW/lib-vc2022/**/*
+
+# GLAD headers and source (REQUIRED)
+!dependencies/GLAD/
+!dependencies/GLAD/include/
+!dependencies/GLAD/include/**/*
+!dependencies/GLAD/src/
+!dependencies/GLAD/src/**/*
+
+# Assimp headers and libraries (REQUIRED)
+!dependencies/Assimp/
+!dependencies/Assimp/include/
+!dependencies/Assimp/include/**/*
+!dependencies/Assimp/lib/
+!dependencies/Assimp/lib/x64/
+!dependencies/Assimp/lib/x64/**/*
+!dependencies/Assimp/bin/
+!dependencies/Assimp/bin/x64/
+!dependencies/Assimp/bin/x64/assimp-vc143-mt.dll
 
 # Resources (REQUIRED - shaders, models, textures, sounds)
 !resources/**/*.vert
