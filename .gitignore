@@ -183,11 +183,9 @@ dependencies/GLM/.git/
 dependencies/GLM/.github/
 dependencies/GLM/.gitignore
 dependencies/GLM/cmake/
-dependencies/GLM/CMakeLists.txt
 dependencies/GLM/test/
 dependencies/GLM/util/
 dependencies/GLM/doc/
-dependencies/GLM/glm/CMakeLists.txt
 
 ################################################################################
 # Keep These Files (Needed for Compilation)
@@ -212,7 +210,12 @@ dependencies/GLM/glm/CMakeLists.txt
 !dependencies/**/*.c
 !dependencies/**/*.txt
 !dependencies/**/*.md
-!dependencies/**/*.cmake
+
+# GLM headers (REQUIRED - header-only library)
+!dependencies/GLM/glm/**
+!dependencies/GLM/*.txt
+!dependencies/GLM/*.md
+!dependencies/GLM/CMakeLists.txt
 
 # Resources (REQUIRED - shaders, models, textures, sounds)
 !resources/**/*.vert
