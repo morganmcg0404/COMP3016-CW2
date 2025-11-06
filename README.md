@@ -415,7 +415,7 @@ This is a coursework project for COMP3016. Contributions are limited to the proj
 
 ## Author
 
-Morgan McGowan - COMP3016 Coursework 2
+Morgan McGovern - COMP3016 Coursework 2
 
 ## Acknowledgments
 
