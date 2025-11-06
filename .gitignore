@@ -1,0 +1,250 @@
+################################################################################
+# COMP3016-CW2 .gitignore
+# This file ignores build outputs and IDE files while keeping source code,
+# project files, dependencies, and resources needed for compilation.
+################################################################################
+
+## Visual Studio Build Outputs
+################################################################################
+
+# Build directories
+bin/
+bin-int/
+obj/
+intermediates/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Ll]og/
+[Ll]ogs/
+
+# Compiled executables and DLLs (build outputs only)
+*.exe
+*.out
+*.app
+
+# Compiled object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled headers
+*.gch
+*.pch
+
+## Visual Studio User-Specific Files
+################################################################################
+
+# Visual Studio cache/options directory
+.vs/
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio project user options
+*.vcxproj.user
+
+# Visual C++ cache files
+ipch/
+*.aps
+*.ncb
+*.opendb
+*.opensdf
+*.sdf
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+
+# Visual Studio profiler
+*.psess
+*.vsp
+*.vspx
+*.sap
+
+# Visual Studio Trace Files
+*.e2e
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+## Build Results
+################################################################################
+
+# MSBuild Binary and Structured Log
+*.binlog
+
+# NuGet Packages
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+
+# Build results
+[Dd]ebugPublic/
+TestResult.xml
+*.vspscc
+*.vssscc
+
+# Click-Once directory
+publish/
+
+# Publish Web Output
+*.Publish.xml
+*.pubxml
+*.publishproj
+
+## Temporary Files
+################################################################################
+
+# Windows thumbnail cache
+Thumbs.db
+ehthumbs.db
+
+# Folder config file
+Desktop.ini
+
+# Recycle Bin
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.tlog
+*.ilk
+*.idb
+*.pdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.bsc
+*.iobj
+*.ipdb
+*.lastbuildstate
+*.unsuccessfulbuild
+
+# Recipe files
+*.recipe
+
+################################################################################
+# Unnecessary Dependency Files (Not Needed for Compilation)
+################################################################################
+
+## GLFW - Exclude unused library versions and documentation
+dependencies/GLFW/lib-mingw-w64/
+dependencies/GLFW/lib-static-ucrt/
+dependencies/GLFW/lib-vc2013/
+dependencies/GLFW/lib-vc2015/
+dependencies/GLFW/lib-vc2017/
+dependencies/GLFW/lib-vc2019/
+dependencies/GLFW/docs/
+dependencies/GLFW/*.dll
+
+## Assimp - Exclude unnecessary tools, scripts, and build files
+dependencies/Assimp/cmake-modules/
+dependencies/Assimp/scripts/
+dependencies/Assimp/stub/
+dependencies/Assimp/unins000.dat
+dependencies/Assimp/unins000.exe
+dependencies/Assimp/readme_installer.txt
+dependencies/Assimp/WEB
+dependencies/Assimp/bin/**/assimp.exe
+dependencies/Assimp/bin/**/assimp_viewer.exe
+dependencies/Assimp/bin/**/D3DCompiler_*.dll
+dependencies/Assimp/bin/**/D3DX9_*.dll
+
+## GLM - Exclude git files, tests, docs, and build files
+dependencies/GLM/.git/
+dependencies/GLM/.github/
+dependencies/GLM/.gitignore
+dependencies/GLM/cmake/
+dependencies/GLM/CMakeLists.txt
+dependencies/GLM/test/
+dependencies/GLM/util/
+dependencies/GLM/doc/
+dependencies/GLM/glm/CMakeLists.txt
+
+################################################################################
+# Keep These Files (Needed for Compilation)
+################################################################################
+
+# Project files (REQUIRED)
+!*.sln
+!*.vcxproj
+!*.vcxproj.filters
+
+# Source code (REQUIRED)
+!src/**/*.cpp
+!src/**/*.c
+!include/**/*.h
+!include/**/*.hpp
+
+# Dependencies (REQUIRED - precompiled libraries)
+!dependencies/**/*.lib
+!dependencies/**/*.dll
+!dependencies/**/*.h
+!dependencies/**/*.hpp
+!dependencies/**/*.c
+!dependencies/**/*.txt
+!dependencies/**/*.md
+!dependencies/**/*.cmake
+
+# Resources (REQUIRED - shaders, models, textures, sounds)
+!resources/**/*.vert
+!resources/**/*.frag
+!resources/**/*.glsl
+!resources/**/*.obj
+!resources/**/*.fbx
+!resources/**/*.dae
+!resources/**/*.png
+!resources/**/*.jpg
+!resources/**/*.jpeg
+!resources/**/*.bmp
+!resources/**/*.tga
+!resources/**/*.wav
+!resources/**/*.mp3
+!resources/**/*.ogg
+
+# Documentation
+!README.md
+!LICENSE
+!*.md
+
+################################################################################
+# Notes:
+# - All source code, headers, and project files are tracked
+# - Only REQUIRED dependency files are tracked:
+#   * GLFW: include/, lib-vc2022/glfw3.lib
+#   * GLAD: include/, src/
+#   * Assimp: include/, lib/x64/*.lib, bin/x64/assimp-vc143-mt.dll
+#   * GLM: glm/ headers (excluding build/test files)
+# - Resources folder is tracked (shaders, models, textures, sounds)
+# - Build outputs (exe, obj, bin/) are ignored
+# - Visual Studio user settings are ignored
+# - Unnecessary dependency files are ignored (docs, tests, other VS versions, tools)
+################################################################################
