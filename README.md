@@ -10,7 +10,7 @@ A 3D voxel-based terrain generation engine built with OpenGL, featuring procedur
 - **Camera System**: First-person camera with keyboard (WASD) and mouse controls
 - **Lighting**: Phong lighting model with ambient, diffuse, and specular components
 - **Performance Optimized**: Chunk management system for efficient memory usage
-- **Modern OpenGL**: Uses OpenGL 3.3 Core Profile with custom shaders
+- **Modern OpenGL**: Uses OpenGL 4.3 Core Profile with custom shaders
 
 ## Project Structure
 
@@ -61,7 +61,7 @@ COMP3016-CW2/
 - **Configuration:**
   - Language: C/C++
   - Specification: OpenGL
-  - API gl: Version 3.3 (Core Profile)
+  - API gl: Version 4.3 (Core Profile)
   - Generate a loader: ✓
 - **Status:** ✅ Already installed
 - **Setup:**
@@ -161,7 +161,7 @@ COMP3016-CW2/
 - Seamless chunk boundaries
 
 ### Rendering
-- **OpenGL 3.3 Core Profile**
+- **OpenGL 4.3 Core Profile**
 - Custom vertex and fragment shaders
 - **Phong lighting model** with:
   - Ambient lighting (30% strength)
@@ -219,7 +219,7 @@ COMP3016-CW2/
 ### Library Versions
 - Make sure all libraries are **64-bit (x64)** versions
 - Ensure libraries are built with compatible Visual Studio versions (VS2022/v143 toolset)
-- OpenGL 3.3+ support required (most modern GPUs support this)
+- OpenGL 4.3+ support required (most modern GPUs support this)
 
 ### Project Configuration
 The project is already configured with:
@@ -247,7 +247,7 @@ The project is already configured with:
 
 **OpenGL errors:**
 - Ensure your graphics drivers are up to date
-- Verify OpenGL 3.3+ support on your GPU
+- Verify OpenGL 4.3+ support on your GPU
 - Check that GLAD is properly initialized before OpenGL calls
 
 **Performance issues:**
@@ -382,7 +382,7 @@ Current configuration includes:
 1. Verify all DLLs are in the output directory (`bin/Debug/` or `bin/Release/`)
 2. Check that you're running the correct platform configuration (x64)
 3. Ensure graphics drivers are up to date
-4. Verify OpenGL 3.3+ support on your system
+4. Verify OpenGL 4.3+ support on your system
 
 ### Black screen or no terrain visible
 1. Check console output for shader compilation errors
@@ -402,16 +402,6 @@ Current configuration includes:
 2. Check that all dependencies are properly installed
 3. Clean solution and rebuild (`Build > Clean Solution`, then `Build > Rebuild Solution`)
 4. Ensure C++17 standard is selected in project properties
-
-## Contributing
-
-This is a coursework project for COMP3016. Contributions are limited to the project requirements.
-
-### Code Style Guidelines
-- Use clear, descriptive variable names
-- Comment complex algorithms (especially terrain generation)
-- Follow existing code structure and formatting
-- Keep classes focused on single responsibilities
 
 ## Author
 
