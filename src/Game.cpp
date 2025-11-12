@@ -44,8 +44,8 @@ bool Game::Initialize()
         return false;
     }
 
-    // Initialize chunk manager with 20 block render distance
-    m_chunkManager = std::make_unique<ChunkManager>(20);
+    // Initialize chunk manager with 8 chunk render distance (128 blocks)
+    m_chunkManager = std::make_unique<ChunkManager>(128);
 
     // Generate initial chunks around the camera
     m_chunkManager->Update(*m_camera);
