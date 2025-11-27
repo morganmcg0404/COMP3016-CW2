@@ -32,9 +32,6 @@ public:
 
     // Cleanup resources
     void Shutdown();
-    
-    // Get current sky color
-    glm::vec3 GetSkyColor() const;
 
 private:
     bool m_initialized;
@@ -74,12 +71,16 @@ private:
     void UpdateDayNightCycle(float deltaTime);
     glm::vec3 GetSunPosition();
     glm::vec3 GetMoonPosition();
+    glm::vec3 GetSkyColor() const { return m_skyColor; }
 
     // Sky rendering
     unsigned int m_skyVAO, m_skyVBO;
+    void InitializeSkybox();
+    void RenderSky();
+    
+    // Star rendering
     unsigned int m_starsVAO, m_starsVBO;
     int m_starCount;
-    void InitializeSkybox();
     void InitializeStars();
-    void RenderSky();
+    void RenderStars();
 };

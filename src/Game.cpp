@@ -19,7 +19,8 @@
 
 Game::Game()
     : m_initialized(false), m_firstMouse(true), m_lastX(640.0f), m_lastY(360.0f), m_sprintKeyPressed(false),
-      m_timeOfDay(0.25f), m_lightUpdateTimer(0.0f)  // Start at dawn (0.25 = 6am)
+      m_timeOfDay(0.25f), m_lightUpdateTimer(0.0f),  // Start at dawn (0.25 = 6am)
+      m_skyColor(0.53f, 0.81f, 0.92f)  // Start with bright blue sky
 {
 }
 
@@ -77,10 +78,11 @@ bool Game::Initialize()
     // Initialize player model
     InitializePlayerModel();
 
-    // Initialize skybox and stars
+    // Initialize skybox
     InitializeSkybox();
+    
+    // Initialize stars
     InitializeStars();
-    m_skyColor = glm::vec3(0.53f, 0.81f, 0.92f); // Start with day sky
 
     // Load shadow shader
     m_shadowShader = std::make_unique<Shader>("resources/shaders/shadow.vert", "resources/shaders/shadow.frag");
@@ -304,6 +306,9 @@ void Game::Render()
     // 2. Render scene normally with shadows
     glViewport(0, 0, 1280, 720);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    
+    // Set sky color based on time of day
+    glClearColor(m_skyColor.r, m_skyColor.g, m_skyColor.b, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // Use main shader
@@ -325,16 +330,15 @@ void Game::Render()
     m_shader->setVec3("lightColor", m_lightColor.x, m_lightColor.y, m_lightColor.z);
 
     // Calculate light space matrix with same adjustments as shadow pass
-    // Calculate sun angle and height for shadow adjustments
-    float renderSunAngle = m_timeOfDay * 2.0f * 3.14159f;
-    float renderSunHeight = sin(renderSunAngle);
+    float sunAngle = m_timeOfDay * 2.0f * 3.14159f;
+    float sunHeight = sin(sunAngle);
     
     glm::vec3 adjustedSunPos = sunPos;
-    if (abs(renderSunHeight) < 0.5f) {
+    if (abs(sunHeight) < 0.5f) {
         // When sun is low, keep it at a minimum angle to prevent long shadows
-        adjustedSunPos.y = m_camera->Position.y + (renderSunHeight >= 0 ? 250.0f : -250.0f);
+        adjustedSunPos.y = m_camera->Position.y + (sunHeight >= 0 ? 250.0f : -250.0f);
         // Maintain horizontal distance for realistic direction
-        float horizontalDist = 500.0f * cos(renderSunAngle);
+        float horizontalDist = 500.0f * cos(sunAngle);
         adjustedSunPos.z = m_camera->Position.z + horizontalDist;
     }
     
@@ -350,6 +354,9 @@ void Game::Render()
 
     // Render sky first
     RenderSky();
+    
+    // Render stars at night
+    RenderStars();
 
     // Reset model matrix and lighting for terrain rendering
     model = glm::mat4(1.0f);
@@ -629,26 +636,41 @@ void Game::UpdateDayNightCycle(float deltaTime)
         float sunHeight = sin(sunAngle);
         float lightIntensity;
 
-        if (sunHeight > 0.0f)
+        if (sunHeight > -0.1f)
         {
-            // Day time - full brightness
-            lightIntensity = 0.3f + (sunHeight * 0.7f);  // 0.3 to 1.0
+            // Day time - keep full brightness until sun approaches horizon
+            if (sunHeight > 0.2f)
+            {
+                // Full daylight when sun is well above horizon
+                lightIntensity = 1.0f;
+            }
+            else
+            {
+                // Quick dimming only as sun approaches/crosses horizon
+                float transitionProgress = (sunHeight + 0.1f) / 0.3f;  // 0 at -0.1, 1.0 at 0.2
+                lightIntensity = 0.3f + (transitionProgress * 0.7f);  // 0.3 to 1.0
+            }
             m_lightColor = glm::vec3(1.0f, 0.95f, 0.8f) * lightIntensity;  // Warm daylight
             
-            // Sky color transitions from orange at sunrise/sunset to blue at noon
-            float dayProgress = sunHeight; // 0 at horizon, 1 at zenith
-            glm::vec3 dayColor = glm::vec3(0.53f, 0.81f, 0.92f); // Bright blue
-            glm::vec3 sunsetColor = glm::vec3(1.0f, 0.5f, 0.2f); // Orange
-            m_skyColor = glm::mix(sunsetColor, dayColor, dayProgress);
+            // Bright blue sky during day - fast transition near horizon
+            float dayProgress = std::max(0.0f, (sunHeight + 0.1f) / 0.3f);  // 0 at -0.1, 1.0 at 0.2
+            dayProgress = std::min(1.0f, dayProgress);
+            glm::vec3 duskColor = glm::vec3(0.4f, 0.45f, 0.6f);  // Twilight blue
+            glm::vec3 dayColor = glm::vec3(0.53f, 0.81f, 0.92f);  // Bright sky blue
+            m_skyColor = glm::mix(duskColor, dayColor, dayProgress);
         }
         else
         {
-            // Night time - dim moonlight
-            lightIntensity = 0.15f + (abs(sunHeight) * 0.1f);  // 0.15 to 0.25
+            // Night time - dim moonlight (gets dark quickly)
+            float nightProgress = std::min(1.0f, (abs(sunHeight) - 0.1f) / 0.15f);  // 0 at -0.1, 1.0 at -0.25
+            
+            lightIntensity = 0.15f + ((1.0f - nightProgress) * 0.15f);  // 0.3 to 0.15
             m_lightColor = glm::vec3(0.6f, 0.7f, 1.0f) * lightIntensity;  // Cool moonlight
             
-            // Dark blue at night
-            m_skyColor = glm::vec3(0.05f, 0.05f, 0.15f);
+            // Quick transition to very dark at night
+            glm::vec3 duskColor = glm::vec3(0.4f, 0.45f, 0.6f);  // Twilight blue
+            glm::vec3 nightColor = glm::vec3(0.02f, 0.02f, 0.08f);  // Almost black
+            m_skyColor = glm::mix(duskColor, nightColor, nightProgress);
         }
 
         // Debug output
@@ -741,11 +763,10 @@ void Game::RenderSky()
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // Calculate sun angle once for the entire function
+    // Render sun if it's above horizon
     float sunAngle = m_timeOfDay * 2.0f * 3.14159f;
     float sunHeight = sin(sunAngle);
 
-    // Render sun if it's above horizon
     if (sunHeight > -0.1f)  // Render sun when it's visible or slightly below horizon
     {
         glm::vec3 sunPos = GetSunPosition();
@@ -837,22 +858,6 @@ void Game::RenderSky()
         glBindVertexArray(0);
     }
     
-    // Render stars at night - reuse sunHeight calculated at the top
-    if (sunHeight < 0.0f)  // Only show stars at night
-    {
-        float starAlpha = abs(sunHeight);  // Fade in/out stars
-        
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, m_camera->Position);  // Stars centered on camera
-        
-        m_shader->setMat4("model", glm::value_ptr(model));
-        m_shader->setVec3("lightColor", 1.0f, 1.0f, 1.0f);  // White light for stars
-        
-        glBindVertexArray(m_starsVAO);
-        glDrawArrays(GL_POINTS, 0, m_starCount);
-        glBindVertexArray(0);
-    }
-    
     // Disable blending for normal rendering
     glDisable(GL_BLEND);
 
@@ -862,49 +867,44 @@ void Game::RenderSky()
 
 void Game::InitializeStars()
 {
-    // Create random star positions in a sphere around the camera
+    m_starCount = 500;  // Number of stars
     std::vector<float> starVertices;
     
+    // Generate random stars distributed across the sky sphere
+    srand(12345);  // Fixed seed for consistent star positions
     for (int i = 0; i < m_starCount; i++)
     {
-        // Random spherical coordinates
-        float theta = ((float)rand() / RAND_MAX) * 2.0f * 3.14159f;
-        float phi = ((float)rand() / RAND_MAX) * 3.14159f;
-        float radius = 400.0f;  // Stars far away
+        // Generate random position on a sphere
+        float theta = ((float)rand() / RAND_MAX) * 2.0f * 3.14159f;  // 0 to 2PI
+        float phi = ((float)rand() / RAND_MAX) * 3.14159f;  // 0 to PI
+        float distance = 800.0f;  // Far away from camera
         
-        // Convert to Cartesian
-        float x = radius * sin(phi) * cos(theta);
-        float y = radius * sin(phi) * sin(theta);
-        float z = radius * cos(phi);
+        // Convert spherical to cartesian coordinates
+        float x = distance * sin(phi) * cos(theta);
+        float y = distance * cos(phi);
+        float z = distance * sin(phi) * sin(theta);
         
-        // Only place stars in upper hemisphere and away from sun/moon path
-        if (y > 50.0f)  // Only above horizon
-        {
-            // Position
-            starVertices.push_back(x);
-            starVertices.push_back(y);
-            starVertices.push_back(z);
-            
-            // Normal (not used but required)
-            starVertices.push_back(0.0f);
-            starVertices.push_back(1.0f);
-            starVertices.push_back(0.0f);
-            
-            // Color (white with slight variation)
-            float brightness = 0.8f + ((float)rand() / RAND_MAX) * 0.2f;
-            starVertices.push_back(brightness);
-            starVertices.push_back(brightness);
-            starVertices.push_back(brightness);
-        }
+        // Random brightness (0.5 to 1.0)
+        float brightness = 0.5f + ((float)rand() / RAND_MAX) * 0.5f;
+        
+        // Position, Normal (not used), Color (white with varying brightness)
+        starVertices.push_back(x);
+        starVertices.push_back(y);
+        starVertices.push_back(z);
+        starVertices.push_back(0.0f);
+        starVertices.push_back(0.0f);
+        starVertices.push_back(1.0f);
+        starVertices.push_back(brightness);
+        starVertices.push_back(brightness);
+        starVertices.push_back(brightness);
     }
     
-    // Create VAO and VBO
     glGenVertexArrays(1, &m_starsVAO);
     glGenBuffers(1, &m_starsVBO);
     
     glBindVertexArray(m_starsVAO);
     glBindBuffer(GL_ARRAY_BUFFER, m_starsVBO);
-    glBufferData(GL_ARRAY_BUFFER, starVertices.size() * sizeof(float), &starVertices[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, starVertices.size() * sizeof(float), starVertices.data(), GL_STATIC_DRAW);
     
     // Position attribute
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)0);
@@ -919,12 +919,46 @@ void Game::InitializeStars()
     glEnableVertexAttribArray(2);
     
     glBindVertexArray(0);
-    
-    // Enable point size in shader
-    glEnable(GL_PROGRAM_POINT_SIZE);
 }
 
-glm::vec3 Game::GetSkyColor() const
+void Game::RenderStars()
 {
-    return m_skyColor;
+    // Only render stars at night
+    float sunAngle = m_timeOfDay * 2.0f * 3.14159f;
+    float sunHeight = sin(sunAngle);
+    
+    // Calculate star visibility (fade in/out based on sun position)
+    float starVisibility = 0.0f;
+    if (sunHeight < -0.1f)
+    {
+        // Fade in stars as sun goes below horizon
+        starVisibility = std::min(1.0f, (-sunHeight - 0.1f) / 0.2f);  // Full brightness when sun is well below horizon
+    }
+    
+    if (starVisibility <= 0.0f)
+        return;  // Don't render during day
+    
+    // Disable depth test so stars render behind everything
+    glDepthMask(GL_FALSE);
+    
+    // Set larger point size for stars
+    glPointSize(2.0f);
+    
+    // Use current shader and set bright lighting for stars
+    glm::vec3 starLightPos = m_camera->Position + glm::vec3(0.0f, 1000.0f, 0.0f);
+    m_shader->setVec3("lightPos", starLightPos.x, starLightPos.y, starLightPos.z);
+    m_shader->setVec3("lightColor", 5.0f * starVisibility, 5.0f * starVisibility, 5.0f * starVisibility);
+    
+    // Translate stars to follow camera
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, m_camera->Position);
+    m_shader->setMat4("model", glm::value_ptr(model));
+    
+    // Render stars as points
+    glBindVertexArray(m_starsVAO);
+    glDrawArrays(GL_POINTS, 0, m_starCount);
+    glBindVertexArray(0);
+    
+    // Re-enable depth writing
+    glDepthMask(GL_TRUE);
 }

@@ -21,7 +21,4 @@ void main()
     FragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0);
     
     gl_Position = projection * view * vec4(FragPos, 1.0);
-    
-    // Point size for star rendering
-    gl_PointSize = 2.0;
 }
