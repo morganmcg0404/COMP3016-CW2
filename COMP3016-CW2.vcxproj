@@ -70,7 +70,8 @@
       <AdditionalDependencies>glfw3.lib;assimp-vc143-mt.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /y /d "$(SolutionDir)dependencies\Assimp\bin\x64\*.dll" "$(OutDir)"</Command>
+      <Command>xcopy /y /d "$(SolutionDir)dependencies\Assimp\bin\x64\*.dll" "$(OutDir)"
+xcopy /y /d /s "$(SolutionDir)resources" "$(OutDir)resources\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -94,7 +95,8 @@
       <AdditionalDependencies>glfw3.lib;assimp-vc143-mt.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /y /d "$(SolutionDir)dependencies\Assimp\bin\x64\*.dll" "$(OutDir)"</Command>
+      <Command>xcopy /y /d "$(SolutionDir)dependencies\Assimp\bin\x64\*.dll" "$(OutDir)"
+xcopy /y /d /s "$(SolutionDir)resources" "$(OutDir)resources\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -116,6 +118,8 @@
     <None Include="README.md" />
     <None Include="resources\shaders\basic.frag" />
     <None Include="resources\shaders\basic.vert" />
+    <None Include="resources\shaders\shadow.frag" />
+    <None Include="resources\shaders\shadow.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

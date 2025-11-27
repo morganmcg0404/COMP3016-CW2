@@ -1,6 +1,8 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
 #include <iostream>
+#include <algorithm>
 #include "Game.h"
 
 // Window dimensions
@@ -81,6 +83,15 @@ int main()
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         std::cerr << "Failed to initialize GLAD" << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+
+    // Verify OpenGL context is valid
+    if (!glGetString(GL_VERSION))
+    {
+        std::cerr << "Failed to get OpenGL version - context may be invalid" << std::endl;
+        glfwTerminate();
         return -1;
     }
 
@@ -97,6 +108,7 @@ int main()
     if (!game.Initialize())
     {
         std::cerr << "Failed to initialize game" << std::endl;
+        g_game = nullptr;
         glfwTerminate();
         return -1;
     }
@@ -104,6 +116,7 @@ int main()
     // Game loop
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
+    const float maxDeltaTime = 0.1f; // Cap delta time to prevent physics glitches
 
     while (!glfwWindowShouldClose(window))
     {
@@ -111,6 +124,9 @@ int main()
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+
+        // Cap delta time to prevent large jumps (when window is moved, debugging, etc.)
+        deltaTime = std::min(deltaTime, maxDeltaTime);
 
         // Process input
         processInput(window);
@@ -120,7 +136,8 @@ int main()
         game.Update(deltaTime);
 
         // Render
-        glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
+        glm::vec3 skyColor = game.GetSkyColor();
+        glClearColor(skyColor.r, skyColor.g, skyColor.b, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         game.Render();

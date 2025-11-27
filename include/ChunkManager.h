@@ -105,6 +105,40 @@ public:
         return static_cast<int>(m_chunks.size());
     }
 
+    // Get block at world position
+    BlockType GetBlockAtPosition(float worldX, float worldY, float worldZ) const
+    {
+        // Convert world coordinates to chunk coordinates
+        int chunkX = (int)floor(worldX / CHUNK_SIZE);
+        int chunkZ = (int)floor(worldZ / CHUNK_SIZE);
+        
+        // Get local coordinates within chunk
+        int localX = ((int)floor(worldX) % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+        int localY = (int)floor(worldY);
+        int localZ = ((int)floor(worldZ) % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+        
+        // Check bounds
+        if (localY < 0 || localY >= CHUNK_HEIGHT)
+            return BlockType::AIR;
+        
+        // Find chunk
+        long long key = TerrainGenerator::GetChunkKey(chunkX, chunkZ);
+        auto it = m_chunks.find(key);
+        if (it != m_chunks.end())
+        {
+            return it->second->blocks[localX][localY][localZ].type;
+        }
+        
+        return BlockType::AIR;
+    }
+
+    // Check if position is solid (for collision)
+    bool IsSolid(float worldX, float worldY, float worldZ) const
+    {
+        BlockType blockType = GetBlockAtPosition(worldX, worldY, worldZ);
+        return blockType != BlockType::AIR;
+    }
+
 private:
     std::map<long long, Chunk*> m_chunks;
     int m_renderDistance;
