@@ -6,11 +6,17 @@ A 3D voxel-based terrain generation engine built with OpenGL, featuring procedur
 
 - **Voxel-Based Terrain**: Minecraft-style block-based world generation
 - **Chunk System**: Efficient chunk-based rendering with configurable render distance
-- **Procedural Generation**: Perlin noise-based terrain generation with multiple biomes
-- **Camera System**: First-person camera with keyboard (WASD) and mouse controls
-- **Lighting**: Phong lighting model with ambient, diffuse, and specular components
-- **Performance Optimized**: Chunk management system for efficient memory usage
-- **Modern OpenGL**: Uses OpenGL 4.3 Core Profile with custom shaders
+- **Procedural Generation**: Perlin noise-based terrain with multiple biomes and unique world seeds
+- **Camera System**: First-person camera with WASD movement, sprint, and crouch
+- **Advanced Lighting**: Phong lighting with dynamic day/night cycle and real-time shadows
+- **Shadow Mapping**: High-resolution shadow maps (8192x8192) with PCF filtering
+- **Block Interaction**: Raycast-based block destruction with 3-block reach
+- **Player Hand**: Animated first-person hand with bobbing and swing animations
+- **Crosshair**: Aspect-ratio corrected targeting reticle
+- **Biomes**: Grassland and desert biomes with smooth transitions
+- **Bedrock Layer**: Indestructible bottom layer at y=0
+- **Performance Optimized**: Face culling, chunk batching, and efficient memory management
+- **Modern OpenGL**: OpenGL 4.3 Core Profile with custom GLSL shaders
 
 ## Project Structure
 
@@ -34,8 +40,10 @@ COMP3016-CW2/
 │   └── Game.cpp         # Game logic, rendering, input handling
 ├── resources/            # Game resources
 │   └── shaders/         # GLSL shaders
-│       ├── basic.vert   # Vertex shader (transforms, lighting prep)
-│       └── basic.frag   # Fragment shader (Phong lighting)
+│       ├── basic.vert   # Vertex shader (transforms, lighting prep, shadow coords)
+│       ├── basic.frag   # Fragment shader (Phong lighting, shadow calculation, PCF)
+│       ├── shadow.vert  # Shadow map vertex shader
+│       └── shadow.frag  # Shadow map fragment shader
 ├── lib/                  # Additional library files
 └── bin/                  # Build output (generated)
 ```
@@ -143,7 +151,11 @@ COMP3016-CW2/
 ## Controls
 
 - **W/A/S/D**: Move camera forward/left/backward/right
+- **Left Shift**: Crouch (slower movement)
+- **Left Control**: Toggle sprint (faster movement)
+- **Space**: Jump
 - **Mouse Movement**: Look around (first-person view)
+- **Left Mouse Button**: Destroy block (3 block range)
 - **ESC**: Exit the application
 
 ## Technical Details
@@ -155,25 +167,51 @@ COMP3016-CW2/
 - Efficient memory management with chunk loading/unloading
 
 ### Terrain Generation
-- Uses **Perlin noise** algorithm for natural-looking terrain
+- **Perlin noise** algorithm for natural-looking terrain
+- **Unique world seeds**: Different terrain each time you play (seed displayed in console)
 - Multiple noise octaves for varied terrain features
-- Height-based block type selection (grass, dirt, stone)
+- **Biome system**: Grassland (green grass) and Desert (sandy) biomes with smooth blending
+- Height-based block layers:
+  - **Bedrock** (y=0): Indestructible dark grey bottom layer
+  - **Stone** (y=1 to terrain-5): Deep underground layer
+  - **Dirt/Sand** (terrain-5 to terrain-1): Subsurface layer (biome-dependent)
+  - **Grass/Sand** (terrain surface): Top layer (biome-dependent)
+- **Tree generation**: Oak trees with logs and leaf blocks in grassland biomes
 - Seamless chunk boundaries
 
 ### Rendering
 - **OpenGL 4.3 Core Profile**
-- Custom vertex and fragment shaders
+- Custom vertex and fragment shaders with separate shadow shaders
 - **Phong lighting model** with:
   - Ambient lighting (30% strength)
-  - Diffuse lighting (directional)
+  - Diffuse lighting (directional from sun/moon)
   - Specular highlights (20% strength, shininess: 16)
+- **Shadow mapping**:
+  - 8192x8192 resolution shadow maps for crisp shadows
+  - PCF (Percentage Closer Filtering) for smooth shadow edges
+  - Dynamic shadows from sun/moon position
+  - Minimal shadow bias to prevent peter-panning
+- **Day/Night cycle**: 
+  - 360-second full cycle (6 minutes)
+  - Dynamic sky color transitions
+  - Moving sun and moon with realistic lighting
+  - Stars visible at night
+- **Skybox**: Procedurally generated sky with celestial objects
+- **Player hand rendering**: Unlit hand model with bobbing and swing animations
+- **Crosshair**: Screen-space crosshair with aspect ratio correction
 - Block face culling for performance
 
 ### Camera System
 - First-person perspective
-- Smooth mouse-based rotation
-- WASD movement with adjustable speed (default: 15 units/sec)
-- Proper view and projection matrices
+- Smooth mouse-based rotation with yaw and pitch
+- Movement modes:
+  - **Normal**: 15 units/sec
+  - **Sprint**: 30 units/sec (toggle with Ctrl)
+  - **Crouch**: 8 units/sec (hold Shift)
+- **Physics**: Gravity (20 units/sec²) and ground detection
+- **Collision detection**: Prevents walking through blocks
+- **Jump**: 12 units/sec vertical velocity
+- Proper view and projection matrices (perspective FOV: 60°)
 
 ## Code Architecture
 
@@ -196,8 +234,11 @@ COMP3016-CW2/
 - Uniform variable management
 
 **Block** (`Block.h`)
-- Block type enumeration (Air, Grass, Dirt, Stone)
-- Block properties and definitions
+- Block type enumeration:
+  - Air, Grass, Desert Sand, Dirt, Stone, Wood, Leaves, Bedrock
+- Block color definitions (RGB values for each type)
+- Biome type enumeration (Grassland, Desert)
+- Block properties and state management
 
 **Chunk** (`Chunk.h`)
 - 16x256x16 block data structure
@@ -283,16 +324,19 @@ Current configuration includes:
 
 ## Future Enhancement Possibilities
 
-- **Physics**: Add collision detection and physics simulation
-- **Textures**: Implement texture atlas for block textures
-- **Biomes**: Expand terrain generation with multiple biomes
-- **Water**: Add transparent water blocks
+- **Textures**: Implement texture atlas for block textures instead of solid colors
+- **Block Placement**: Allow players to place blocks (right-click)
+- **Inventory**: Hotbar with different block types
+- **More Biomes**: Mountains, forests, oceans, snow biomes
+- **Water**: Add transparent water blocks with flow physics
 - **Cave Generation**: Implement cave systems using 3D noise
-- **Block Placement/Destruction**: Add player interaction with blocks
-- **Lighting**: Implement dynamic lighting and shadows
+- **Advanced Shadows**: Cascaded shadow maps for better long-distance shadows
 - **Multiplayer**: Network functionality for multiplayer support
-- **Audio**: Add ambient sounds and music (irrKlang integration)
+- **Audio**: Add ambient sounds, footsteps, and music (irrKlang integration)
+- **Particles**: Block break particles, weather effects
 - **Optimization**: Implement frustum culling and LOD system
+- **Mobs**: Add creatures and enemies
+- **Crafting**: Item crafting system
 
 ## Development Workflow
 
@@ -343,20 +387,32 @@ Current configuration includes:
 - [x] Project setup with all dependencies
 - [x] Window creation and OpenGL context
 - [x] Camera system with first-person controls
-- [x] Shader system (vertex and fragment shaders)
+- [x] Sprint and crouch movement modes
+- [x] Physics system (gravity, jumping, collision)
+- [x] Shader system (vertex, fragment, shadow shaders)
 - [x] Phong lighting implementation
-- [x] Block data structure
-- [x] Chunk system (16x256x16 blocks)
+- [x] Shadow mapping with PCF filtering
+- [x] Day/night cycle with dynamic lighting
+- [x] Skybox with sun, moon, and stars
+- [x] Block data structure with multiple types
+- [x] Biome system (Grassland, Desert)
+- [x] Chunk system (16x64x16 blocks)
 - [x] Chunk manager with render distance
-- [x] Perlin noise terrain generation
+- [x] Perlin noise terrain generation with world seeds
+- [x] Tree generation system
+- [x] Bedrock layer (indestructible bottom)
 - [x] Mesh generation from block data
 - [x] Dynamic chunk loading/unloading
 - [x] Input handling (keyboard and mouse)
+- [x] Block destruction with raycasting
+- [x] Player hand rendering with animations
+- [x] Crosshair display
 
 ### In Development 🚧
 - [ ] Texture mapping for blocks
-- [ ] Block interaction (place/destroy)
-- [ ] Improved terrain features
+- [ ] Block placement system
+- [ ] Inventory system
+- [ ] More biome types
 
 ### Future Considerations 💭
 - [ ] Physics integration
