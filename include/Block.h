@@ -18,7 +18,8 @@ enum class BlockType
     DIRT,
     STONE,
     WOOD,
-    LEAVES
+    LEAVES,
+    BEDROCK
 };
 
 // Block structure
@@ -47,6 +48,8 @@ struct Block
             return glm::vec3(0.4f, 0.2f, 0.1f);  // Dark brown
         case BlockType::LEAVES:
             return glm::vec3(0.1f, 0.8f, 0.1f);  // Bright green
+        case BlockType::BEDROCK:
+            return glm::vec3(0.1f, 0.1f, 0.1f);  // Very dark grey (almost black)
         case BlockType::AIR:
         default:
             return glm::vec3(1.0f, 1.0f, 1.0f);

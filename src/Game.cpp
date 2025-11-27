@@ -101,6 +101,10 @@ bool Game::Initialize()
 
     // Initialize shadow mapping
     InitializeShadowMap();
+    
+    // Initialize crosshair
+    InitializeCrosshair();
+    std::cout << "Crosshair initialized" << std::endl;
 
     m_initialized = true;
     std::cout << "Game systems initialized successfully" << std::endl;
@@ -400,6 +404,12 @@ void Game::Render()
     
     // Render hand (last so it's always on top)
     RenderHand();
+    
+    // Render crosshair (absolute last)
+    RenderCrosshair();
+    
+    // Render crosshair (absolute last)
+    RenderCrosshair();
 }
 
 void Game::InitializePlayerModel()
@@ -541,6 +551,32 @@ bool Game::WouldCollide(const glm::vec3& newPosition)
     return false;  // No collision
 }
 
+bool Game::RaycastBlock(glm::vec3& hitPos, float maxDistance)
+{
+    // Get ray origin and direction from camera
+    glm::vec3 rayOrigin = m_camera->Position;
+    glm::vec3 rayDir = m_camera->Front;
+    
+    // DDA algorithm for voxel raycast
+    float stepSize = 0.1f;  // Small steps for accuracy
+    glm::vec3 currentPos = rayOrigin;
+    
+    for (float distance = 0.0f; distance < maxDistance; distance += stepSize)
+    {
+        currentPos = rayOrigin + rayDir * distance;
+        
+        // Check if current position has a solid block
+        if (m_chunkManager->IsSolid(currentPos.x, currentPos.y, currentPos.z))
+        {
+            // Found a block - store position and return true
+            hitPos = glm::vec3(floor(currentPos.x), floor(currentPos.y), floor(currentPos.z));
+            return true;
+        }
+    }
+    
+    return false;  // No block hit within range
+}
+
 void Game::Shutdown()
 {
     if (!m_initialized)
@@ -563,6 +599,12 @@ void Game::Shutdown()
     // Cleanup hand
     glDeleteVertexArrays(1, &m_handVAO);
     glDeleteBuffers(1, &m_handVBO);
+    
+    // Cleanup crosshair
+    glDeleteVertexArrays(1, &m_crosshairVAO);
+    glDeleteBuffers(1, &m_crosshairVBO);
+    glDeleteVertexArrays(1, &m_crosshairVAO);
+    glDeleteBuffers(1, &m_crosshairVBO);
 
     // Cleanup shadow map
     glDeleteFramebuffers(1, &m_shadowMapFBO);
@@ -1188,5 +1230,88 @@ void Game::ProcessMouseButton(int button, int action)
     {
         m_isSwinging = true;
         m_handSwingTimer = 0.0f;
+        
+        // Raycast to find block player is looking at
+        glm::vec3 hitPos;
+        if (RaycastBlock(hitPos, 3.0f))  // 3 block range
+        {
+            // Destroy the block
+            m_chunkManager->DestroyBlock(hitPos.x, hitPos.y, hitPos.z);
+        }
     }
+}
+
+void Game::InitializeCrosshair()
+{
+    // Crosshair size in normalized device coordinates (-1 to 1)
+    float size = 0.02f;  // Small crosshair
+    float thickness = 0.004f;  // Thin lines
+    
+    // Crosshair vertices (two rectangles forming a +)
+    float vertices[] = {
+        // Horizontal line
+        -size, -thickness, 0.0f,  1.0f, 1.0f, 1.0f,  // Left
+         size, -thickness, 0.0f,  1.0f, 1.0f, 1.0f,  // Right
+         size,  thickness, 0.0f,  1.0f, 1.0f, 1.0f,  // Right top
+        -size,  thickness, 0.0f,  1.0f, 1.0f, 1.0f,  // Left top
+        
+        // Vertical line
+        -thickness, -size, 0.0f,  1.0f, 1.0f, 1.0f,  // Bottom
+         thickness, -size, 0.0f,  1.0f, 1.0f, 1.0f,  // Bottom right
+         thickness,  size, 0.0f,  1.0f, 1.0f, 1.0f,  // Top right
+        -thickness,  size, 0.0f,  1.0f, 1.0f, 1.0f   // Top
+    };
+    
+    glGenVertexArrays(1, &m_crosshairVAO);
+    glGenBuffers(1, &m_crosshairVBO);
+    
+    glBindVertexArray(m_crosshairVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_crosshairVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    
+    // Position attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    
+    // Color attribute
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    
+    glBindVertexArray(0);
+}
+
+void Game::RenderCrosshair()
+{
+    // Save OpenGL state
+    GLboolean depthTestEnabled = glIsEnabled(GL_DEPTH_TEST);
+    
+    // Disable depth test so crosshair always appears on top
+    glDisable(GL_DEPTH_TEST);
+    
+    m_shader->use();
+    m_shader->setBool("unlit", true);  // No lighting for crosshair
+    
+    // Get current viewport to calculate aspect ratio
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    float aspectRatio = (float)viewport[2] / (float)viewport[3];  // width / height
+    
+    // Create orthographic projection that accounts for aspect ratio
+    glm::mat4 model = glm::mat4(1.0f);
+    glm::mat4 view = glm::mat4(1.0f);
+    glm::mat4 projection = glm::ortho(-aspectRatio, aspectRatio, -1.0f, 1.0f, -1.0f, 1.0f);
+    
+    m_shader->setMat4("model", glm::value_ptr(model));
+    m_shader->setMat4("view", glm::value_ptr(view));
+    m_shader->setMat4("projection", glm::value_ptr(projection));
+    
+    // Draw horizontal line (4 vertices = 2 triangles)
+    glBindVertexArray(m_crosshairVAO);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+    glDrawArrays(GL_TRIANGLE_FAN, 4, 4);
+    glBindVertexArray(0);
+    
+    // Restore OpenGL state
+    if (depthTestEnabled)
+        glEnable(GL_DEPTH_TEST);
 }

@@ -74,8 +74,16 @@ private:
     void RenderHand();
     void UpdateHandAnimation(float deltaTime, bool isMoving);
 
+    // Crosshair rendering
+    unsigned int m_crosshairVAO, m_crosshairVBO;
+    void InitializeCrosshair();
+    void RenderCrosshair();
+
     // Collision helpers
     bool WouldCollide(const glm::vec3& newPosition);
+    
+    // Raycasting for block interaction
+    bool RaycastBlock(glm::vec3& hitPos, float maxDistance);
 
     // Day/Night cycle
     float m_timeOfDay;  // 0.0 to 1.0 (0 = midnight, 0.5 = noon)

@@ -450,7 +450,12 @@ public:
                 {
                     BlockType blockType;
                     
-                    if (y == terrainHeight - 1)
+                    if (y == 0)
+                    {
+                        // Bottom layer - bedrock (unbreakable)
+                        blockType = BlockType::BEDROCK;
+                    }
+                    else if (y == terrainHeight - 1)
                     {
                         // Top layer - blended grass/sand based on biome transition
                         blockType = surfaceBlockType;

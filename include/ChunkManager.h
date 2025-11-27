@@ -139,6 +139,38 @@ public:
         return blockType != BlockType::AIR;
     }
 
+    // Destroy block at world position
+    void DestroyBlock(float worldX, float worldY, float worldZ)
+    {
+        // Convert world coordinates to chunk coordinates
+        int chunkX = (int)floor(worldX / CHUNK_SIZE);
+        int chunkZ = (int)floor(worldZ / CHUNK_SIZE);
+        
+        // Get local coordinates within chunk
+        int localX = ((int)floor(worldX) % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+        int localY = (int)floor(worldY);
+        int localZ = ((int)floor(worldZ) % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
+        
+        // Check bounds
+        if (localY < 0 || localY >= CHUNK_HEIGHT)
+            return;
+        
+        // Find chunk
+        long long key = TerrainGenerator::GetChunkKey(chunkX, chunkZ);
+        auto it = m_chunks.find(key);
+        if (it != m_chunks.end())
+        {
+            // Don't destroy bedrock
+            BlockType blockType = it->second->blocks[localX][localY][localZ].type;
+            if (blockType == BlockType::BEDROCK)
+                return;
+            
+            // Destroy block
+            it->second->SetBlock(localX, localY, localZ, BlockType::AIR);
+            it->second->GenerateMesh();
+        }
+    }
+
 private:
     std::map<long long, Chunk*> m_chunks;
     int m_renderDistance;
