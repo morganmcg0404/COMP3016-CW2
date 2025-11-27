@@ -6,6 +6,7 @@
 #include "Chunk.h"
 #include "Block.h"
 #include <cmath>
+#include <ctime>
 #include <iostream>
 
 class TerrainGenerator
@@ -13,16 +14,34 @@ class TerrainGenerator
 public:
     TerrainGenerator() {}
 
+    // World seed for unique generation
+    static int worldSeed;
+
+    // Initialize world seed (call once at game start)
+    static void InitializeSeed(int seed = 0)
+    {
+        if (seed == 0)
+        {
+            // Generate random seed from current time
+            worldSeed = static_cast<int>(time(nullptr));
+        }
+        else
+        {
+            worldSeed = seed;
+        }
+        std::cout << "World seed: " << worldSeed << std::endl;
+    }
+
     // Simple hash function for chunk coordinates
     static long long GetChunkKey(int x, int z)
     {
         return ((long long)x << 32) | (unsigned int)z;
     }
 
-    // Improved noise function
+    // Improved noise function with world seed
     static float Noise2D(float x, float z)
     {
-        int n = (int)(x * 374761393.0f + z * 668265263.0f);
+        int n = (int)(x * 374761393.0f + z * 668265263.0f) + worldSeed;
         n = (n << 13) ^ n;
         return (1.0f - ((n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff) / 1073741824.0f);
     }

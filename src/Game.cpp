@@ -10,6 +10,9 @@
 #include <iostream>
 #include <algorithm>
 
+// Define static member
+int TerrainGenerator::worldSeed = 0;
+
 // For future integration:
 // #include <irrKlang.h>
 // #include <PxPhysicsAPI.h>
@@ -33,6 +36,9 @@ Game::~Game()
 bool Game::Initialize()
 {
     std::cout << "Initializing game systems..." << std::endl;
+
+    // Initialize world seed for unique terrain generation
+    TerrainGenerator::InitializeSeed();
 
     // Initialize camera at a temporary position
     m_camera = std::make_unique<Camera>(glm::vec3(0.0f, 50.0f, 0.0f));
