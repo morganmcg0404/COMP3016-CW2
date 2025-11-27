@@ -45,6 +45,9 @@ bld/
 # Visual Studio cache/options directory
 .vs/
 
+# VS Code workspace settings
+.vscode/
+
 # User-specific files
 *.rsuser
 *.suo
