@@ -55,8 +55,8 @@ private:
     // Shadow mapping
     unsigned int m_shadowMapFBO;
     unsigned int m_shadowMap;
-    const unsigned int SHADOW_WIDTH = 4096;
-    const unsigned int SHADOW_HEIGHT = 4096;
+    const unsigned int SHADOW_WIDTH = 8192;
+    const unsigned int SHADOW_HEIGHT = 8192;
     void InitializeShadowMap();
     void RenderShadowMap();
 
