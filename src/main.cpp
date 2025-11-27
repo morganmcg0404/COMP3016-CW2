@@ -41,6 +41,13 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
         g_game->ProcessMouseMovement(xoffset, yoffset);
 }
 
+// Mouse button callback
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+    if (g_game)
+        g_game->ProcessMouseButton(button, action);
+}
+
 // Process input
 void processInput(GLFWwindow* window)
 {
@@ -73,6 +80,7 @@ int main()
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
 
     // Capture mouse
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);

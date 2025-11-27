@@ -23,6 +23,9 @@ public:
 
     // Process mouse movement
     void ProcessMouseMovement(float xoffset, float yoffset);
+    
+    // Process mouse button
+    void ProcessMouseButton(int button, int action);
 
     // Update game logic and physics
     void Update(float deltaTime);
@@ -39,6 +42,9 @@ private:
     float m_lastX;
     float m_lastY;
     bool m_sprintKeyPressed;
+    bool m_isPlayerMoving;
+    bool m_isCrouching;
+    float m_crouchOffset;
 
     // Game systems
     std::unique_ptr<Camera> m_camera;
@@ -58,6 +64,15 @@ private:
     unsigned int m_playerVAO, m_playerVBO;
     void InitializePlayerModel();
     void RenderPlayer();
+    
+    // Hand rendering
+    unsigned int m_handVAO, m_handVBO;
+    float m_handBobTimer;
+    float m_handSwingTimer;
+    bool m_isSwinging;
+    void InitializeHand();
+    void RenderHand();
+    void UpdateHandAnimation(float deltaTime, bool isMoving);
 
     // Collision helpers
     bool WouldCollide(const glm::vec3& newPosition);

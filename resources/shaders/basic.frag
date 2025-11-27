@@ -10,6 +10,7 @@ uniform vec3 lightPos;
 uniform vec3 viewPos;
 uniform vec3 lightColor;
 uniform sampler2D shadowMap;
+uniform bool unlit;
 
 float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
 {
@@ -38,6 +39,12 @@ float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
 
 void main()
 {
+    // If unlit mode, just output the vertex color directly
+    if (unlit) {
+        FragColor = vec4(Color, 1.0);
+        return;
+    }
+    
     // Ambient
     float ambientStrength = 0.3;
     vec3 ambient = ambientStrength * lightColor;

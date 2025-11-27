@@ -19,8 +19,10 @@
 
 Game::Game()
     : m_initialized(false), m_firstMouse(true), m_lastX(640.0f), m_lastY(360.0f), m_sprintKeyPressed(false),
+      m_isPlayerMoving(false), m_isCrouching(false), m_crouchOffset(0.0f),
       m_timeOfDay(0.25f), m_lightUpdateTimer(0.0f),  // Start at dawn (0.25 = 6am)
-      m_skyColor(0.53f, 0.81f, 0.92f)  // Start with bright blue sky
+      m_skyColor(0.53f, 0.81f, 0.92f),  // Start with bright blue sky
+      m_handBobTimer(0.0f), m_handSwingTimer(0.0f), m_isSwinging(false)
 {
 }
 
@@ -83,6 +85,9 @@ bool Game::Initialize()
     
     // Initialize stars
     InitializeStars();
+    
+    // Initialize hand
+    InitializeHand();
 
     // Load shadow shader
     m_shadowShader = std::make_unique<Shader>("resources/shaders/shadow.vert", "resources/shaders/shadow.frag");
@@ -103,7 +108,7 @@ bool Game::Initialize()
 void Game::ProcessInput(GLFWwindow* window, float deltaTime)
 {
     // Check if crouching (shift slows movement)
-    bool isCrouching = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
+    m_isCrouching = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
 
     // Toggle sprint on Control key press (not hold)
     bool sprintKeyCurrentlyPressed = (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS);
@@ -119,17 +124,29 @@ void Game::ProcessInput(GLFWwindow* window, float deltaTime)
         m_camera->Jump();
     }
 
+    // Check if player is moving for hand animation
+    m_isPlayerMoving = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ||
+                        glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ||
+                        glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ||
+                        glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS);
+    
+    // Check if player is moving for hand animation
+    m_isPlayerMoving = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ||
+                        glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ||
+                        glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ||
+                        glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS);
+    
     // Horizontal movement (WASD) - check collision before applying
     glm::vec3 totalMovement(0.0f);
     
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        totalMovement += m_camera->GetMovementVector(FORWARD, deltaTime, isCrouching);
+        totalMovement += m_camera->GetMovementVector(FORWARD, deltaTime, m_isCrouching);
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        totalMovement += m_camera->GetMovementVector(BACKWARD, deltaTime, isCrouching);
+        totalMovement += m_camera->GetMovementVector(BACKWARD, deltaTime, m_isCrouching);
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        totalMovement += m_camera->GetMovementVector(LEFT, deltaTime, isCrouching);
+        totalMovement += m_camera->GetMovementVector(LEFT, deltaTime, m_isCrouching);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        totalMovement += m_camera->GetMovementVector(RIGHT, deltaTime, isCrouching);
+        totalMovement += m_camera->GetMovementVector(RIGHT, deltaTime, m_isCrouching);
     
     // Apply movement if it doesn't cause collision
     if (totalMovement != glm::vec3(0.0f))
@@ -177,20 +194,23 @@ void Game::Update(float deltaTime)
 
     // Apply physics
     m_camera->ApplyPhysics(deltaTime);
+    
+    // Update hand animation based on movement
+    UpdateHandAnimation(deltaTime, m_isPlayerMoving);
 
-    // Collision detection - check feet position
-    glm::vec3 feetPos = m_camera->GetFeetPosition();
+    // Collision detection - use camera position directly
+    float feetY = m_camera->Position.y - PLAYER_EYE_HEIGHT;
     
     // Check if player is on ground (check block directly below feet)
-    m_camera->IsGrounded = m_chunkManager->IsSolid(feetPos.x, feetPos.y - 0.1f, feetPos.z);
+    m_camera->IsGrounded = m_chunkManager->IsSolid(m_camera->Position.x, feetY - 0.1f, m_camera->Position.z);
     
     // If grounded and falling, stop downward velocity and snap to top of block
     if (m_camera->IsGrounded && m_camera->Velocity.y <= 0.0f)
     {
         // Find the exact block Y position below the player
-        int blockY = (int)floor(feetPos.y - 0.1f);
+        int blockY = (int)floor(feetY - 0.1f);
         
-        // Snap player feet to top of that block
+        // Snap camera to correct height above that block
         float targetY = (float)blockY + 1.0f + PLAYER_EYE_HEIGHT;
         
         // Only snap if we're close (prevent teleporting from far away)
@@ -364,12 +384,16 @@ void Game::Render()
     m_shader->setMat4("view", glm::value_ptr(view));
     m_shader->setMat4("projection", glm::value_ptr(projection));
     m_shader->setVec3("lightColor", m_lightColor.x, m_lightColor.y, m_lightColor.z);
+    m_shader->setBool("unlit", false);  // Enable lighting for terrain
 
     // Render all chunks
     m_chunkManager->Render();
 
     // Render player model
     RenderPlayer();
+    
+    // Render hand (last so it's always on top)
+    RenderHand();
 }
 
 void Game::InitializePlayerModel()
@@ -529,6 +553,10 @@ void Game::Shutdown()
     // Cleanup stars
     glDeleteVertexArrays(1, &m_starsVAO);
     glDeleteBuffers(1, &m_starsVBO);
+    
+    // Cleanup hand
+    glDeleteVertexArrays(1, &m_handVAO);
+    glDeleteBuffers(1, &m_handVBO);
 
     // Cleanup shadow map
     glDeleteFramebuffers(1, &m_shadowMapFBO);
@@ -961,4 +989,198 @@ void Game::RenderStars()
     
     // Re-enable depth writing
     glDepthMask(GL_TRUE);
+}
+
+void Game::InitializeHand()
+{
+    // Create a simple hand model (a rectangular block)
+    float width = 0.18f;   // Width
+    float height = 0.18f;  // Height (same as width)
+    float depth = 0.5f;    // Depth (length extending forward)
+    
+    glm::vec3 skinColor(0.8f, 0.6f, 0.5f);  // Skin tone
+    
+    std::vector<float> vertices;
+    
+    // Front face
+    vertices.insert(vertices.end(), {0.0f, 0.0f, depth, 0.0f, 0.0f, 1.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, 0.0f, depth, 0.0f, 0.0f, 1.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, height, depth, 0.0f, 0.0f, 1.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, height, depth, 0.0f, 0.0f, 1.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {0.0f, height, depth, 0.0f, 0.0f, 1.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {0.0f, 0.0f, depth, 0.0f, 0.0f, 1.0f, skinColor.r, skinColor.g, skinColor.b});
+    
+    // Back face
+    vertices.insert(vertices.end(), {width, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {0.0f, height, 0.0f, 0.0f, 0.0f, -1.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {0.0f, height, 0.0f, 0.0f, 0.0f, -1.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, height, 0.0f, 0.0f, 0.0f, -1.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, skinColor.r, skinColor.g, skinColor.b});
+    
+    // Top face (reversed winding order for proper culling when rotated)
+    vertices.insert(vertices.end(), {0.0f, height, depth, 0.0f, 1.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {0.0f, height, 0.0f, 0.0f, 1.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, height, 0.0f, 0.0f, 1.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, height, 0.0f, 0.0f, 1.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, height, depth, 0.0f, 1.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {0.0f, height, depth, 0.0f, 1.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    
+    // Bottom face
+    vertices.insert(vertices.end(), {0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, 0.0f, depth, 0.0f, -1.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, 0.0f, depth, 0.0f, -1.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {0.0f, 0.0f, depth, 0.0f, -1.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    
+    // Right face
+    vertices.insert(vertices.end(), {width, 0.0f, depth, 1.0f, 0.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, height, 0.0f, 1.0f, 0.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, height, 0.0f, 1.0f, 0.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, height, depth, 1.0f, 0.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {width, 0.0f, depth, 1.0f, 0.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    
+    // Left face
+    vertices.insert(vertices.end(), {0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {0.0f, 0.0f, depth, -1.0f, 0.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {0.0f, height, depth, -1.0f, 0.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {0.0f, height, depth, -1.0f, 0.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {0.0f, height, 0.0f, -1.0f, 0.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    vertices.insert(vertices.end(), {0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, skinColor.r, skinColor.g, skinColor.b});
+    
+    glGenVertexArrays(1, &m_handVAO);
+    glGenBuffers(1, &m_handVBO);
+    
+    glBindVertexArray(m_handVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_handVBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+    
+    // Position attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    
+    // Normal attribute
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    
+    // Color attribute
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    
+    glBindVertexArray(0);
+}
+
+void Game::UpdateHandAnimation(float deltaTime, bool isMoving)
+{
+    // Update bob timer when moving
+    if (isMoving)
+    {
+        float bobSpeed = 5.0f;  // Base bobbing speed
+        
+        // Adjust speed based on movement state
+        if (m_camera->IsSprinting)
+            bobSpeed = 8.0f;  // Faster when sprinting
+        else if (m_camera->BaseSpeed < 3.0f)  // Crouching
+            bobSpeed = 3.0f;   // Slower when crouching
+        
+        m_handBobTimer += deltaTime * bobSpeed;
+    }
+    else
+    {
+        // Finish the current bob cycle before stopping
+        if (m_handBobTimer > 0.0f)
+        {
+            // Continue the bob at reduced speed until we reach a neutral position
+            m_handBobTimer += deltaTime * 3.0f;
+            
+            // Snap to zero when we've completed a cycle (when sine is near zero)
+            float bobAmount = sin(m_handBobTimer);
+            if (fabs(bobAmount) < 0.1f)  // Near neutral position
+            {
+                m_handBobTimer = 0.0f;
+            }
+        }
+    }
+    
+    // Update swing animation
+    if (m_isSwinging)
+    {
+        m_handSwingTimer += deltaTime * 10.0f;  // Fast swing animation
+        
+        if (m_handSwingTimer >= 1.0f)
+        {
+            m_handSwingTimer = 0.0f;
+            m_isSwinging = false;
+        }
+    }
+}
+
+void Game::RenderHand()
+{
+    // Save current OpenGL state
+    GLboolean depthTestEnabled = glIsEnabled(GL_DEPTH_TEST);
+    
+    // Disable depth test so hand renders on top
+    glDisable(GL_DEPTH_TEST);
+    
+    // Always force face culling off for hand rendering
+    glDisable(GL_CULL_FACE);
+    
+    // Calculate hand position and rotation using a separate view/projection for UI space
+    glm::mat4 view = glm::mat4(1.0f);
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), 1280.0f / 720.0f, 0.01f, 10.0f);
+    
+    // Position hand in screen space (center-right, lower)
+    glm::vec3 handPos(0.45f, -0.6f, -2.0f);  // Left, down, forward from view center
+    
+    // Apply bobbing when moving
+    float bobAmount = sin(m_handBobTimer) * 0.05f;
+    handPos.y += bobAmount;
+    
+    // Apply swing animation
+    float swingRotation = 0.0f;
+    if (m_isSwinging)
+    {
+        // Swing down and back up
+        float swingProgress = m_handSwingTimer;
+        swingRotation = sin(swingProgress * 3.14159f) * -45.0f;  // -45 to 0 degrees
+        handPos.y -= sin(swingProgress * 3.14159f) * 0.3f;
+    }
+    
+    // Create hand transformation matrix
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, handPos);
+    model = glm::rotate(model, glm::radians(45.0f), glm::vec3(1.0f, 0.0f, 0.0f));  // Rotate 45 degrees upward
+    model = glm::scale(model, glm::vec3(1.2f, 1.2f, 1.2f));
+    
+    // Set shader uniforms
+    m_shader->use();
+    m_shader->setMat4("model", glm::value_ptr(model));
+    m_shader->setMat4("view", glm::value_ptr(view));
+    m_shader->setMat4("projection", glm::value_ptr(projection));
+    
+    // Disable lighting for hand - render with pure vertex color
+    m_shader->setBool("unlit", true);
+    
+    // Draw hand
+    glBindVertexArray(m_handVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glBindVertexArray(0);
+    
+    // Restore OpenGL state (but keep culling disabled since it wasn't originally enabled)
+    if (depthTestEnabled)
+        glEnable(GL_DEPTH_TEST);
+    // Don't restore cull face - it should stay disabled
+}
+
+void Game::ProcessMouseButton(int button, int action)
+{
+    // Left mouse button (button 0)
+    if (button == 0 && action == 1)  // GLFW_MOUSE_BUTTON_LEFT and GLFW_PRESS
+    {
+        m_isSwinging = true;
+        m_handSwingTimer = 0.0f;
+    }
 }
