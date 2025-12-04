@@ -48,6 +48,13 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         g_game->ProcessMouseButton(button, action);
 }
 
+// Mouse scroll callback
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    if (g_game)
+        g_game->ProcessMouseScroll(yoffset);
+}
+
 // Process input
 void processInput(GLFWwindow* window)
 {
@@ -81,6 +88,7 @@ int main()
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetScrollCallback(window, scroll_callback);
 
     // Capture mouse
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -112,6 +120,10 @@ int main()
     // Game loop
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
+    float titleUpdateTimer = 0.0f;
+    int frameCount = 0;
+    float fpsTimer = 0.0f;
+    int fps = 0;
 
     while (!glfwWindowShouldClose(window))
     {
@@ -119,6 +131,27 @@ int main()
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+        
+        // Calculate FPS
+        frameCount++;
+        fpsTimer += deltaTime;
+        if (fpsTimer >= 1.0f)
+        {
+            fps = frameCount;
+            frameCount = 0;
+            fpsTimer = 0.0f;
+        }
+        
+        // Update window title with coordinates and FPS every 0.1 seconds
+        titleUpdateTimer += deltaTime;
+        if (titleUpdateTimer >= 0.1f)
+        {
+            titleUpdateTimer = 0.0f;
+            glm::vec3 pos = game.GetCameraPosition();
+            char title[128];
+            snprintf(title, sizeof(title), "Voxel Engine | FPS: %d | X: %.1f Y: %.0f Z: %.1f", fps, pos.x, ceil(pos.y), pos.z);
+            glfwSetWindowTitle(window, title);
+        }
 
         // Process input
         processInput(window);
@@ -131,7 +164,7 @@ int main()
         glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        game.Render();
+        game.Render(window);
 
         // Swap buffers and poll events
         glfwSwapBuffers(window);

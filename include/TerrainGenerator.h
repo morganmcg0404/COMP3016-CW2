@@ -38,12 +38,20 @@ public:
         return ((long long)x << 32) | (unsigned int)z;
     }
 
-    // Improved noise function with world seed
+    // Improved noise function with world seed - more stable hash
     static float Noise2D(float x, float z)
     {
-        int n = (int)(x * 374761393.0f + z * 668265263.0f) + worldSeed;
+        // Convert to integers for hashing
+        int ix = (int)floor(x);
+        int iz = (int)floor(z);
+        
+        // Combine coordinates and seed using a stable hash
+        int n = ix + iz * 57 + worldSeed * 131;
         n = (n << 13) ^ n;
-        return (1.0f - ((n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff) / 1073741824.0f);
+        int nn = (n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff;
+        
+        // Return value in range -1 to 1
+        return 1.0f - (float)nn / 1073741824.0f;
     }
 
     // Smooth noise using interpolation
@@ -82,35 +90,44 @@ public:
         return a * (1.0f - f) + b * f;
     }
 
-    // Perlin noise (octaves) - smoother terrain with base elevation
+    // Perlin noise (octaves) - smooth base terrain
     static float PerlinNoise(float x, float z)
     {
         float total = 0.0f;
-        float persistence = 0.4f;  // Reduced from 0.5 for smoother terrain
-        int octaves = 3;  // Reduced from 4 for less detail/roughness
+        float persistence = 0.4f;  // Lower persistence for smoother terrain
+        int octaves = 3;  // Fewer octaves for less complexity
 
         for (int i = 0; i < octaves; i++)
         {
             float frequency = powf(2.0f, (float)i);
             float amplitude = powf(persistence, (float)i);
 
-            // Reduced frequency multiplier for gentler slopes
-            total += InterpolatedNoise(x * frequency * 0.008f, z * frequency * 0.008f) * amplitude;
+            // Very smooth base terrain
+            total += InterpolatedNoise(x * frequency * 0.003f, z * frequency * 0.003f) * amplitude;
         }
 
         return total;
     }
 
-    // Small hills and valleys noise - higher frequency for local variation
+    // Gentle rolling hills - creates smooth elevation changes over a few chunks
+    static float HillsNoise(float x, float z)
+    {
+        // Gentle hills spanning 3-5 chunks
+        float gentleHills = InterpolatedNoise(x * 0.02f, z * 0.02f) * 0.8f;
+        
+        // Very subtle larger variations spanning 8-10 chunks
+        float subtleVariation = InterpolatedNoise(x * 0.01f, z * 0.01f) * 0.5f;
+        
+        return gentleHills + subtleVariation;
+    }
+    
+    // Minimal detail noise - only slight surface variation
     static float DetailNoise(float x, float z)
     {
-        // High frequency noise for small hills and valleys
-        float detail = InterpolatedNoise(x * 0.05f, z * 0.05f);
+        // Very subtle surface variation
+        float detail = InterpolatedNoise(x * 0.08f, z * 0.08f) * 0.15f;
         
-        // Add another layer for even smaller details
-        detail += InterpolatedNoise(x * 0.1f, z * 0.1f) * 0.5f;
-        
-        return detail * 0.3f; // Scale down the effect
+        return detail;
     }
 
     // Get biome region based on chunk coordinates (each biome is minimum 8 chunks)
@@ -281,9 +298,9 @@ public:
             // Check 8 directions around the current position
             for (int angle = 0; angle < 360; angle += 15)
             {
-                float radians = angle * 3.14159f / 180.0f;
-                float checkX = worldX + cos(radians) * radius;
-                float checkZ = worldZ + sin(radians) * radius;
+                float radians = (float)angle * 3.14159f / 180.0f;
+                float checkX = worldX + cos(radians) * (float)radius;
+                float checkZ = worldZ + sin(radians) * (float)radius;
                 
                 BiomeType checkBiome = GetBiome(checkX, checkZ);
                 
@@ -293,7 +310,7 @@ public:
                     if (distance < closestDistance)
                     {
                         closestDistance = distance;
-                        closestAngle = angle;
+                        closestAngle = (float)angle;
                     }
                 }
             }
@@ -422,22 +439,34 @@ public:
                 float worldZ = chunk->position.z + z;
 
                 // Get base height using Perlin noise
-                float height = PerlinNoise(worldX, worldZ);
-                height = (height + 1.0f) * 0.5f;  // Normalize to 0-1
+                float baseHeight = PerlinNoise(worldX, worldZ);
                 
-                // Add small hills and valleys detail
+                // Add gentle rolling hills over a few chunks
+                float hills = HillsNoise(worldX, worldZ);
+                
+                // Add minimal surface detail
                 float detail = DetailNoise(worldX, worldZ);
                 
-                // Combine base terrain with detail
-                // Base terrain: 10-22 blocks (12 block range)
-                // Detail adds: -3 to +3 blocks variation for hills/valleys
-                int baseHeight = (int)(height * 12.0f) + 10;
-                int detailHeight = (int)(detail * 10.0f) - 3;
-                int terrainHeight = baseHeight + detailHeight;
+                // Combine all layers: base + hills + detail
+                // Creates smooth, gently rolling terrain
+                float combinedHeight = baseHeight + hills + detail;
                 
-                // Clamp to reasonable range
-                if (terrainHeight < 8) terrainHeight = 8;
-                if (terrainHeight > 28) terrainHeight = 28;
+                // Normalize to 0-1 range
+                // Expected range is roughly -1.5 to +2.0, so we map to 0-1
+                combinedHeight = (combinedHeight + 1.5f) / 3.5f;
+                combinedHeight = glm::clamp(combinedHeight, 0.0f, 1.0f);
+                
+                // Apply double smoothstep for very smooth transitions
+                // First smoothstep
+                float smoothHeight = combinedHeight * combinedHeight * (3.0f - 2.0f * combinedHeight);
+                // Second smoothstep for extra smoothness
+                smoothHeight = smoothHeight * smoothHeight * (3.0f - 2.0f * smoothHeight);
+                
+                // Map to terrain height range: 12-28 blocks (16 block range for gentle hills)
+                int terrainHeight = 12 + (int)(smoothHeight * 16.0f);
+                
+                // Clamp to safe range
+                terrainHeight = glm::clamp(terrainHeight, 10, 30);
 
                 // Get blended surface block type
                 BlockType surfaceBlockType = GetBlendedSurfaceBlock(worldX, worldZ);

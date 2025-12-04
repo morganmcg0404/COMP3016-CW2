@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <memory>
+#include "Block.h"
 
 // Forward declarations
 class Camera;
@@ -26,15 +27,21 @@ public:
     
     // Process mouse button
     void ProcessMouseButton(int button, int action);
+    
+    // Process mouse scroll
+    void ProcessMouseScroll(double yoffset);
 
     // Update game logic and physics
     void Update(float deltaTime);
 
     // Render the scene
-    void Render();
+    void Render(GLFWwindow* window);
 
     // Cleanup resources
     void Shutdown();
+    
+    // Get camera position for debug display
+    glm::vec3 GetCameraPosition() const;
 
 private:
     bool m_initialized;
@@ -45,6 +52,9 @@ private:
     bool m_isPlayerMoving;
     bool m_isCrouching;
     float m_crouchOffset;
+    
+    // Debug display
+    float m_debugUpdateTimer;
 
     // Game systems
     std::unique_ptr<Camera> m_camera;
@@ -78,12 +88,25 @@ private:
     unsigned int m_crosshairVAO, m_crosshairVBO;
     void InitializeCrosshair();
     void RenderCrosshair();
+    
+    // Hotbar rendering
+    unsigned int m_hotbarVAO, m_hotbarVBO;
+    int m_selectedSlot;  // 0-8 (0 is empty hand)
+    BlockType m_hotbarItems[9];  // Blocks in hotbar slots
+    void InitializeHotbar();
+    void RenderHotbar(int windowWidth, int windowHeight);
+    
+    // Block outline rendering
+    unsigned int m_outlineVAO, m_outlineVBO;
+    void InitializeBlockOutline();
+    void RenderBlockOutline();
 
     // Collision helpers
     bool WouldCollide(const glm::vec3& newPosition);
     
     // Raycasting for block interaction
     bool RaycastBlock(glm::vec3& hitPos, float maxDistance);
+    bool RaycastBlockWithNormal(glm::vec3& hitPos, glm::vec3& normal, float maxDistance);
 
     // Day/Night cycle
     float m_timeOfDay;  // 0.0 to 1.0 (0 = midnight, 0.5 = noon)

@@ -25,8 +25,19 @@ Game::Game()
       m_isPlayerMoving(false), m_isCrouching(false), m_crouchOffset(0.0f),
       m_timeOfDay(0.25f), m_lightUpdateTimer(0.0f),  // Start at dawn (0.25 = 6am)
       m_skyColor(0.53f, 0.81f, 0.92f),  // Start with bright blue sky
-      m_handBobTimer(0.0f), m_handSwingTimer(0.0f), m_isSwinging(false)
+      m_handBobTimer(0.0f), m_handSwingTimer(0.0f), m_isSwinging(false), m_debugUpdateTimer(0.0f),
+      m_selectedSlot(0)  // Start with empty hand
 {
+    // Initialize hotbar with different blocks (slot 0 is empty hand)
+    m_hotbarItems[0] = BlockType::AIR;      // Empty hand
+    m_hotbarItems[1] = BlockType::GRASS;
+    m_hotbarItems[2] = BlockType::DIRT;
+    m_hotbarItems[3] = BlockType::STONE;
+    m_hotbarItems[4] = BlockType::WOOD;
+    m_hotbarItems[5] = BlockType::LEAVES;
+    m_hotbarItems[6] = BlockType::DESERT_SAND;
+    m_hotbarItems[7] = BlockType::BEDROCK;
+    m_hotbarItems[8] = BlockType::GRASS;  // Extra slot
 }
 
 Game::~Game()
@@ -105,6 +116,14 @@ bool Game::Initialize()
     // Initialize crosshair
     InitializeCrosshair();
     std::cout << "Crosshair initialized" << std::endl;
+    
+    // Initialize hotbar
+    InitializeHotbar();
+    std::cout << "Hotbar initialized" << std::endl;
+    
+    // Initialize block outline
+    InitializeBlockOutline();
+    std::cout << "Block outline initialized" << std::endl;
 
     m_initialized = true;
     std::cout << "Game systems initialized successfully" << std::endl;
@@ -117,6 +136,17 @@ bool Game::Initialize()
 
 void Game::ProcessInput(GLFWwindow* window, float deltaTime)
 {
+    // Hotbar selection with number keys (1-9)
+    if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) m_selectedSlot = 0;
+    if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) m_selectedSlot = 1;
+    if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) m_selectedSlot = 2;
+    if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) m_selectedSlot = 3;
+    if (glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS) m_selectedSlot = 4;
+    if (glfwGetKey(window, GLFW_KEY_6) == GLFW_PRESS) m_selectedSlot = 5;
+    if (glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS) m_selectedSlot = 6;
+    if (glfwGetKey(window, GLFW_KEY_8) == GLFW_PRESS) m_selectedSlot = 7;
+    if (glfwGetKey(window, GLFW_KEY_9) == GLFW_PRESS) m_selectedSlot = 8;
+    
     // Check if crouching (shift slows movement)
     m_isCrouching = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
 
@@ -140,11 +170,15 @@ void Game::ProcessInput(GLFWwindow* window, float deltaTime)
                         glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ||
                         glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS);
     
-    // Check if player is moving for hand animation
-    m_isPlayerMoving = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ||
-                        glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ||
-                        glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ||
-                        glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS);
+    // Check if player is moving forward only (for sprint)
+    bool movingForward = (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS);
+    bool movingBackward = (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS);
+    
+    // Disable sprint if player stops moving forward or moves backwards
+    if (m_camera->IsSprinting && (!movingForward || movingBackward))
+    {
+        m_camera->IsSprinting = false;
+    }
     
     // Horizontal movement (WASD) - check collision before applying
     glm::vec3 totalMovement(0.0f);
@@ -284,6 +318,9 @@ void Game::Update(float deltaTime)
 
     // Update chunk loading/unloading based on camera position
     m_chunkManager->Update(*m_camera);
+    
+    // Update physics for gravity-affected blocks
+    m_chunkManager->UpdatePhysics(deltaTime);
 
     // Debug: Print current biome and closest other biome
     static float biomeCheckTimer = 0.0f;
@@ -325,7 +362,7 @@ void Game::Update(float deltaTime)
     }
 }
 
-void Game::Render()
+void Game::Render(GLFWwindow* window)
 {
     if (!m_initialized)
         return;
@@ -334,7 +371,10 @@ void Game::Render()
     RenderShadowMap();
 
     // 2. Render scene normally with shadows
-    glViewport(0, 0, 1280, 720);
+    // Get actual window framebuffer dimensions
+    int windowWidth, windowHeight;
+    glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
+    glViewport(0, 0, windowWidth, windowHeight);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     
     // Set sky color based on time of day
@@ -347,7 +387,8 @@ void Game::Render()
     // Set up matrices
     glm::mat4 model = glm::mat4(1.0f);
     glm::mat4 view = m_camera->GetViewMatrix();
-    glm::mat4 projection = glm::perspective(glm::radians(m_camera->Zoom), 1280.0f / 720.0f, 0.1f, 1000.0f);
+    float aspectRatio = (float)windowWidth / (float)windowHeight;
+    glm::mat4 projection = glm::perspective(glm::radians(m_camera->Zoom), aspectRatio, 0.1f, 1000.0f);
 
     m_shader->setMat4("model", glm::value_ptr(model));
     m_shader->setMat4("view", glm::value_ptr(view));
@@ -405,8 +446,11 @@ void Game::Render()
     // Render hand (last so it's always on top)
     RenderHand();
     
-    // Render crosshair (absolute last)
-    RenderCrosshair();
+    // Render block outline
+    RenderBlockOutline();
+    
+    // Render hotbar
+    RenderHotbar(windowWidth, windowHeight);
     
     // Render crosshair (absolute last)
     RenderCrosshair();
@@ -558,7 +602,7 @@ bool Game::RaycastBlock(glm::vec3& hitPos, float maxDistance)
     glm::vec3 rayDir = m_camera->Front;
     
     // DDA algorithm for voxel raycast
-    float stepSize = 0.1f;  // Small steps for accuracy
+    float stepSize = 0.05f;  // Small steps for accuracy
     glm::vec3 currentPos = rayOrigin;
     
     for (float distance = 0.0f; distance < maxDistance; distance += stepSize)
@@ -572,6 +616,49 @@ bool Game::RaycastBlock(glm::vec3& hitPos, float maxDistance)
             hitPos = glm::vec3(floor(currentPos.x), floor(currentPos.y), floor(currentPos.z));
             return true;
         }
+    }
+    
+    return false;  // No block hit within range
+}
+
+bool Game::RaycastBlockWithNormal(glm::vec3& hitPos, glm::vec3& normal, float maxDistance)
+{
+    // Get ray origin and direction from camera
+    glm::vec3 rayOrigin = m_camera->Position;
+    glm::vec3 rayDir = m_camera->Front;
+    
+    // DDA algorithm for voxel raycast
+    float stepSize = 0.05f;  // Small steps for accuracy
+    glm::vec3 currentPos = rayOrigin;
+    glm::vec3 previousPos = rayOrigin;
+    
+    for (float distance = 0.0f; distance < maxDistance; distance += stepSize)
+    {
+        currentPos = rayOrigin + rayDir * distance;
+        
+        // Check if current position has a solid block
+        if (m_chunkManager->IsSolid(currentPos.x, currentPos.y, currentPos.z))
+        {
+            // Found a block - store position
+            hitPos = glm::vec3(floor(currentPos.x), floor(currentPos.y), floor(currentPos.z));
+            
+            // Calculate normal by determining which face we entered from
+            // Compare where we came from (previous) to where we hit (current)
+            glm::vec3 prevFloor = glm::vec3(floor(previousPos.x), floor(previousPos.y), floor(previousPos.z));
+            glm::vec3 diff = prevFloor - hitPos;
+            
+            // The face we hit is the one pointing towards where we came from
+            if (abs(diff.x) > abs(diff.y) && abs(diff.x) > abs(diff.z))
+                normal = glm::vec3(diff.x > 0 ? 1.0f : -1.0f, 0.0f, 0.0f);
+            else if (abs(diff.y) > abs(diff.z))
+                normal = glm::vec3(0.0f, diff.y > 0 ? 1.0f : -1.0f, 0.0f);
+            else
+                normal = glm::vec3(0.0f, 0.0f, diff.z > 0 ? 1.0f : -1.0f);
+            
+            return true;
+        }
+        
+        previousPos = currentPos;
     }
     
     return false;  // No block hit within range
@@ -603,8 +690,14 @@ void Game::Shutdown()
     // Cleanup crosshair
     glDeleteVertexArrays(1, &m_crosshairVAO);
     glDeleteBuffers(1, &m_crosshairVBO);
-    glDeleteVertexArrays(1, &m_crosshairVAO);
-    glDeleteBuffers(1, &m_crosshairVBO);
+    
+    // Cleanup hotbar
+    glDeleteVertexArrays(1, &m_hotbarVAO);
+    glDeleteBuffers(1, &m_hotbarVBO);
+    
+    // Cleanup block outline
+    glDeleteVertexArrays(1, &m_outlineVAO);
+    glDeleteBuffers(1, &m_outlineVBO);
 
     // Cleanup shadow map
     glDeleteFramebuffers(1, &m_shadowMapFBO);
@@ -1177,8 +1270,11 @@ void Game::RenderHand()
     glDisable(GL_CULL_FACE);
     
     // Calculate hand position and rotation using a separate view/projection for UI space
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    float handAspectRatio = (float)viewport[2] / (float)viewport[3];
     glm::mat4 view = glm::mat4(1.0f);
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), 1280.0f / 720.0f, 0.01f, 10.0f);
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), handAspectRatio, 0.01f, 10.0f);
     
     // Position hand in screen space (center-right, lower)
     glm::vec3 handPos(0.45f, -0.6f, -2.0f);  // Left, down, forward from view center
@@ -1223,9 +1319,16 @@ void Game::RenderHand()
     // Don't restore cull face - it should stay disabled
 }
 
+glm::vec3 Game::GetCameraPosition() const
+{
+    if (m_camera)
+        return m_camera->Position;
+    return glm::vec3(0.0f);
+}
+
 void Game::ProcessMouseButton(int button, int action)
 {
-    // Left mouse button (button 0)
+    // Left mouse button (button 0) - Break block
     if (button == 0 && action == 1)  // GLFW_MOUSE_BUTTON_LEFT and GLFW_PRESS
     {
         m_isSwinging = true;
@@ -1233,12 +1336,70 @@ void Game::ProcessMouseButton(int button, int action)
         
         // Raycast to find block player is looking at
         glm::vec3 hitPos;
-        if (RaycastBlock(hitPos, 3.0f))  // 3 block range
+        if (RaycastBlock(hitPos, 8.0f))  // 8 block range
         {
             // Destroy the block
             m_chunkManager->DestroyBlock(hitPos.x, hitPos.y, hitPos.z);
         }
     }
+    
+    // Right mouse button (button 1) - Place block
+    if (button == 1 && action == 1)  // GLFW_MOUSE_BUTTON_RIGHT and GLFW_PRESS
+    {
+        std::cout << "Right click detected, selected slot: " << m_selectedSlot << std::endl;
+        
+        // Only place if not holding empty hand
+        if (m_selectedSlot > 0)
+        {
+            glm::vec3 hitPos, normal;
+            if (RaycastBlockWithNormal(hitPos, normal, 8.0f))  // 8 block range
+            {
+                // Place block adjacent to hit surface
+                glm::vec3 placePos = hitPos + normal;
+                
+                std::cout << "Hit pos: " << hitPos.x << ", " << hitPos.y << ", " << hitPos.z << std::endl;
+                std::cout << "Normal: " << normal.x << ", " << normal.y << ", " << normal.z << std::endl;
+                std::cout << "Place pos: " << placePos.x << ", " << placePos.y << ", " << placePos.z << std::endl;
+                
+                // Don't place block where player is standing
+                glm::vec3 playerPos = m_camera->Position;
+                
+                // Check if placement would collide with player's body (not just feet)
+                // Use full 3D distance check
+                float dist = glm::distance(placePos, playerPos);
+                
+                std::cout << "Distance from player: " << dist << std::endl;
+                
+                if (dist > 0.5f)  // Reduced radius so player can place blocks closer
+                {
+                    std::cout << "Placing block!" << std::endl;
+                    m_chunkManager->PlaceBlock(placePos.x, placePos.y, placePos.z, m_hotbarItems[m_selectedSlot]);
+                }
+                else
+                {
+                    std::cout << "Too close to player!" << std::endl;
+                }
+            }
+            else
+            {
+                std::cout << "No block hit" << std::endl;
+            }
+        }
+        else
+        {
+            std::cout << "Empty hand selected" << std::endl;
+        }
+    }
+}
+
+void Game::ProcessMouseScroll(double yoffset)
+{
+    // Scroll up = previous slot, scroll down = next slot
+    m_selectedSlot -= (int)yoffset;
+    
+    // Wrap around
+    if (m_selectedSlot < 0) m_selectedSlot = 8;
+    if (m_selectedSlot > 8) m_selectedSlot = 0;
 }
 
 void Game::InitializeCrosshair()
@@ -1309,6 +1470,214 @@ void Game::RenderCrosshair()
     glBindVertexArray(m_crosshairVAO);
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
     glDrawArrays(GL_TRIANGLE_FAN, 4, 4);
+    glBindVertexArray(0);
+    
+    // Restore OpenGL state
+    if (depthTestEnabled)
+        glEnable(GL_DEPTH_TEST);
+}
+
+void Game::InitializeHotbar()
+{
+    // Simple initialization - hotbar will be drawn procedurally in RenderHotbar
+    glGenVertexArrays(1, &m_hotbarVAO);
+    glGenBuffers(1, &m_hotbarVBO);
+}
+
+void Game::RenderHotbar(int windowWidth, int windowHeight)
+{
+    // Save OpenGL state
+    GLboolean depthTestEnabled = glIsEnabled(GL_DEPTH_TEST);
+    glDisable(GL_DEPTH_TEST);
+    
+    m_shader->use();
+    m_shader->setBool("unlit", true);
+    
+    // Calculate aspect ratio
+    float aspectRatio = (float)windowWidth / (float)windowHeight;
+    
+    // Orthographic projection
+    glm::mat4 view = glm::mat4(1.0f);
+    glm::mat4 projection = glm::ortho(-aspectRatio, aspectRatio, -1.0f, 1.0f, -1.0f, 1.0f);
+    
+    // Hotbar dimensions
+    float slotSize = 0.08f;
+    float slotSpacing = 0.01f;
+    float totalWidth = 9 * slotSize + 8 * slotSpacing;
+    float startX = -totalWidth / 2.0f;
+    float bottomY = -0.85f;  // Near bottom of screen
+    
+    // Draw each hotbar slot
+    for (int i = 0; i < 9; i++)
+    {
+        float x = startX + i * (slotSize + slotSpacing);
+        
+        // Create slot rectangle with position, normal, and color
+        float vertices[] = {
+            // pos                                normal                    color
+            x, bottomY, 0.0f,                     0.0f, 0.0f, 1.0f,        0.5f, 0.5f, 0.5f,
+            x + slotSize, bottomY, 0.0f,          0.0f, 0.0f, 1.0f,        0.5f, 0.5f, 0.5f,
+            x + slotSize, bottomY + slotSize, 0.0f, 0.0f, 0.0f, 1.0f,     0.5f, 0.5f, 0.5f,
+            x, bottomY + slotSize, 0.0f,          0.0f, 0.0f, 1.0f,        0.5f, 0.5f, 0.5f
+        };
+        
+        // Highlight selected slot
+        if (i == m_selectedSlot)
+        {
+            vertices[6] = vertices[15] = vertices[24] = vertices[33] = 1.0f;  // R
+            vertices[7] = vertices[16] = vertices[25] = vertices[34] = 1.0f;  // G
+            vertices[8] = vertices[17] = vertices[26] = vertices[35] = 1.0f;  // B
+        }
+        
+        glBindVertexArray(m_hotbarVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, m_hotbarVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
+        
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(6 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+        
+        glm::mat4 model = glm::mat4(1.0f);
+        m_shader->setMat4("model", glm::value_ptr(model));
+        m_shader->setMat4("view", glm::value_ptr(view));
+        m_shader->setMat4("projection", glm::value_ptr(projection));
+        
+        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+        
+        // Draw block icon inside slot if not empty hand
+        if (m_hotbarItems[i] != BlockType::AIR)
+        {
+            Block tempBlock(m_hotbarItems[i]);
+            glm::vec3 blockColor = tempBlock.GetColor();
+            float iconSize = slotSize * 0.6f;
+            float iconOffset = (slotSize - iconSize) / 2.0f;
+            float iconX = x + iconOffset;
+            float iconY = bottomY + iconOffset;
+            
+            float iconVertices[] = {
+                // pos                                      normal                    color
+                iconX, iconY, 0.0f,                        0.0f, 0.0f, 1.0f,        blockColor.r, blockColor.g, blockColor.b,
+                iconX + iconSize, iconY, 0.0f,             0.0f, 0.0f, 1.0f,        blockColor.r, blockColor.g, blockColor.b,
+                iconX + iconSize, iconY + iconSize, 0.0f,  0.0f, 0.0f, 1.0f,        blockColor.r, blockColor.g, blockColor.b,
+                iconX, iconY + iconSize, 0.0f,             0.0f, 0.0f, 1.0f,        blockColor.r, blockColor.g, blockColor.b
+            };
+            
+            glBufferData(GL_ARRAY_BUFFER, sizeof(iconVertices), iconVertices, GL_DYNAMIC_DRAW);
+            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+        }
+    }
+    
+    glBindVertexArray(0);
+    
+    // Restore OpenGL state
+    if (depthTestEnabled)
+        glEnable(GL_DEPTH_TEST);
+}
+
+void Game::InitializeBlockOutline()
+{
+    // Create VAO and VBO for block outline
+    glGenVertexArrays(1, &m_outlineVAO);
+    glGenBuffers(1, &m_outlineVBO);
+}
+
+void Game::RenderBlockOutline()
+{
+    // Raycast to find block player is looking at
+    glm::vec3 hitPos;
+    if (!RaycastBlock(hitPos, 8.0f))
+        return;  // No block in range
+    
+    // Save OpenGL state
+    GLboolean depthTestEnabled = glIsEnabled(GL_DEPTH_TEST);
+    
+    m_shader->use();
+    m_shader->setBool("unlit", true);
+    
+    // Setup matrices
+    glm::mat4 view = m_camera->GetViewMatrix();
+    
+    // Get window dimensions for aspect ratio
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    float aspectRatio = (float)viewport[2] / (float)viewport[3];
+    glm::mat4 projection = glm::perspective(glm::radians(m_camera->Zoom), aspectRatio, 0.1f, 1000.0f);
+    
+    // Create slightly larger cube around the block (1.01 scale for outline offset)
+    float offset = 0.01f;
+    float x = hitPos.x - offset;
+    float y = hitPos.y - offset;
+    float z = hitPos.z - offset;
+    float size = 1.0f + 2.0f * offset;
+    
+    // Define outline edges (12 edges of a cube)
+    float outlineVertices[] = {
+        // Bottom square
+        x, y, z,                0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        x + size, y, z,         0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        
+        x + size, y, z,         0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        x + size, y, z + size,  0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        
+        x + size, y, z + size,  0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        x, y, z + size,         0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        
+        x, y, z + size,         0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        x, y, z,                0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        
+        // Top square
+        x, y + size, z,                0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        x + size, y + size, z,         0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        
+        x + size, y + size, z,         0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        x + size, y + size, z + size,  0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        
+        x + size, y + size, z + size,  0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        x, y + size, z + size,         0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        
+        x, y + size, z + size,         0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        x, y + size, z,                0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        
+        // Vertical edges
+        x, y, z,                0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        x, y + size, z,         0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        
+        x + size, y, z,         0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        x + size, y + size, z,  0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        
+        x + size, y, z + size,         0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        x + size, y + size, z + size,  0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        
+        x, y, z + size,         0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f,
+        x, y + size, z + size,  0.0f, 0.0f, 0.0f,  0.0f, 0.0f, 0.0f
+    };
+    
+    glBindVertexArray(m_outlineVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_outlineVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(outlineVertices), outlineVertices, GL_DYNAMIC_DRAW);
+    
+    // Setup vertex attributes (position, normal, color - all black for outline)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    
+    // Set matrices
+    glm::mat4 model = glm::mat4(1.0f);
+    m_shader->setMat4("model", glm::value_ptr(model));
+    m_shader->setMat4("view", glm::value_ptr(view));
+    m_shader->setMat4("projection", glm::value_ptr(projection));
+    
+    // Draw lines with thicker width
+    glLineWidth(2.0f);
+    glDrawArrays(GL_LINES, 0, 24);  // 24 vertices = 12 lines
+    glLineWidth(1.0f);
+    
     glBindVertexArray(0);
     
     // Restore OpenGL state
