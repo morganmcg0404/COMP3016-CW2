@@ -27,7 +27,8 @@ Game::Game()
       m_skyColor(0.53f, 0.81f, 0.92f),  // Start with bright blue sky
       m_handBobTimer(0.0f), m_handSwingTimer(0.0f), m_isSwinging(false), m_debugUpdateTimer(0.0f),
       m_selectedSlot(0),  // Start with empty hand
-      m_petPosition(0.0f, 50.0f, 0.0f), m_petVelocity(0.0f), m_petSitting(false), m_petSitPosition(0.0f)
+      m_petPosition(0.0f, 50.0f, 0.0f), m_petVelocity(0.0f), m_petSitting(false), m_petSitPosition(0.0f), m_petScale(1.0f),
+      m_showGUI(false), m_renderDistance(20.0f), m_mouseSensitivity(0.1f), m_fov(45.0f), m_timeSpeed(1.0f), m_window(nullptr)
 {
     // Initialize hotbar with different blocks (slot 0 is empty hand)
     m_hotbarItems[0] = BlockType::AIR;      // Empty hand
@@ -130,18 +131,39 @@ bool Game::Initialize()
     m_petPosition = m_camera->Position + glm::vec3(2.0f, 0.0f, 2.0f);
     InitializePet();
     std::cout << "Pet initialized" << std::endl;
+    
+    // Initialize GUI
+    InitializeGUI();
+    std::cout << "GUI initialized" << std::endl;
 
     m_initialized = true;
     std::cout << "Game systems initialized successfully" << std::endl;
     std::cout << "Controls:" << std::endl;
     std::cout << "  WASD - Move | Mouse - Look around | Space - Jump" << std::endl;
-    std::cout << "  Shift - Walk slower | Ctrl - Toggle Sprint" << std::endl;
+    std::cout << "  Shift - Walk slower | Ctrl - Toggle Sprint | G - Toggle GUI" << std::endl;
     
     return true;
 }
 
 void Game::ProcessInput(GLFWwindow* window, float deltaTime)
 {
+    // Toggle GUI with G key
+    static bool gKeyWasPressed = false;
+    bool gKeyPressed = (glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS);
+    if (gKeyPressed && !gKeyWasPressed)
+    {
+        ToggleGUI(window);
+    }
+    gKeyWasPressed = gKeyPressed;
+    
+    // Handle GUI interactions when GUI is open
+    if (m_showGUI)
+    {
+        int windowWidth, windowHeight;
+        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+        HandleGUIInteraction(window, windowWidth, windowHeight);
+    }
+    
     // Hotbar selection with number keys (1-9)
     if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) m_selectedSlot = 0;
     if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) m_selectedSlot = 1;
@@ -234,7 +256,8 @@ void Game::ProcessMouseMovement(float xoffset, float yoffset)
         m_firstMouse = false;
     }
 
-    m_camera->ProcessMouseMovement(xoffset, yoffset);
+    // Apply mouse sensitivity from GUI
+    m_camera->ProcessMouseMovement(xoffset * m_mouseSensitivity / 0.1f, yoffset * m_mouseSensitivity / 0.1f);
 }
 
 void Game::Update(float deltaTime)
@@ -358,7 +381,7 @@ void Game::Render(GLFWwindow* window)
     glm::mat4 model = glm::mat4(1.0f);
     glm::mat4 view = m_camera->GetViewMatrix();
     float aspectRatio = (float)windowWidth / (float)windowHeight;
-    glm::mat4 projection = glm::perspective(glm::radians(m_camera->Zoom), aspectRatio, 0.1f, 1000.0f);
+    glm::mat4 projection = glm::perspective(glm::radians(m_fov), aspectRatio, 0.1f, 1000.0f);
 
     m_shader->setMat4("model", glm::value_ptr(model));
     m_shader->setMat4("view", glm::value_ptr(view));
@@ -424,6 +447,12 @@ void Game::Render(GLFWwindow* window)
     
     // Render hotbar
     RenderHotbar(windowWidth, windowHeight);
+    
+    // Render GUI if enabled
+    if (m_showGUI)
+    {
+        RenderGUI(windowWidth, windowHeight);
+    }
     
     // Render crosshair (absolute last)
     RenderCrosshair();
@@ -675,6 +704,10 @@ void Game::Shutdown()
     // Cleanup pet
     glDeleteVertexArrays(1, &m_petVAO);
     glDeleteBuffers(1, &m_petVBO);
+    
+    // Cleanup GUI
+    glDeleteVertexArrays(1, &m_guiVAO);
+    glDeleteBuffers(1, &m_guiVBO);
 
     // Cleanup shadow map
     glDeleteFramebuffers(1, &m_shadowMapFBO);
@@ -763,7 +796,7 @@ void Game::RenderShadowMap()
 void Game::UpdateDayNightCycle(float deltaTime)
 {
     // Update timer
-    m_lightUpdateTimer += deltaTime;
+    m_lightUpdateTimer += deltaTime * m_timeSpeed;
 
     // Update lighting every 2 seconds
     if (m_lightUpdateTimer >= 2.0f)
@@ -1291,6 +1324,10 @@ glm::vec3 Game::GetCameraPosition() const
 
 void Game::ProcessMouseButton(int button, int action)
 {
+    // Don't process block interactions if GUI is open
+    if (m_showGUI)
+        return;
+    
     // Left mouse button (button 0) - Break block
     if (button == 0 && action == 1)  // GLFW_MOUSE_BUTTON_LEFT and GLFW_PRESS
     {
@@ -1569,7 +1606,7 @@ void Game::RenderBlockOutline()
     GLint viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
     float aspectRatio = (float)viewport[2] / (float)viewport[3];
-    glm::mat4 projection = glm::perspective(glm::radians(m_camera->Zoom), aspectRatio, 0.1f, 1000.0f);
+    glm::mat4 projection = glm::perspective(glm::radians(m_fov), aspectRatio, 0.1f, 1000.0f);
     
     // Create slightly larger cube around the block (1.01 scale for outline offset)
     float offset = 0.01f;
@@ -1769,19 +1806,46 @@ void Game::UpdatePet(float deltaTime)
         m_petVelocity = glm::mix(m_petVelocity, glm::vec3(0.0f), deltaTime * 10.0f);
     }
 
-    // Apply gravity
-    const float GRAVITY = -20.0f;
-    m_petVelocity.y += GRAVITY * deltaTime;
-    m_petPosition.y += m_petVelocity.y * deltaTime;
-
-    // Ground collision - check if there's a solid block below
-    glm::vec3 belowPos = m_petPosition - glm::vec3(0.0f, 0.1f, 0.0f);
-    if (m_chunkManager->IsSolid(belowPos.x, belowPos.y, belowPos.z))
+    // Ground collision - check for ground BEFORE applying gravity
+    float petHalfHeight = 0.25f * m_petScale;
+    float targetGroundHeight = -1000.0f;
+    bool onGround = false;
+    
+    // Check if there's a solid block below
+    for (float checkDist = 0.0f; checkDist <= petHalfHeight + 0.5f; checkDist += 0.1f)
     {
-        // Find the top of the block
-        int blockY = (int)floor(belowPos.y);
-        m_petPosition.y = (float)blockY + 1.25f; // 1.0 for block top + 0.25 for pet half-height
-        m_petVelocity.y = 0.0f;
+        glm::vec3 checkPos = m_petPosition - glm::vec3(0.0f, checkDist, 0.0f);
+        if (m_chunkManager->IsSolid(checkPos.x, checkPos.y, checkPos.z))
+        {
+            int blockY = (int)floor(checkPos.y);
+            targetGroundHeight = (float)blockY + 1.0f + petHalfHeight;
+            onGround = true;
+            break;
+        }
+    }
+    
+    // Apply gravity only if not on ground
+    if (onGround)
+    {
+        // Smoothly move to ground height if close
+        if (abs(m_petPosition.y - targetGroundHeight) < 0.01f)
+        {
+            m_petPosition.y = targetGroundHeight;
+            m_petVelocity.y = 0.0f;
+        }
+        else
+        {
+            // Interpolate to ground height
+            m_petPosition.y = glm::mix(m_petPosition.y, targetGroundHeight, deltaTime * 10.0f);
+            m_petVelocity.y = 0.0f;
+        }
+    }
+    else
+    {
+        // In air - apply gravity
+        const float GRAVITY = -20.0f;
+        m_petVelocity.y += GRAVITY * deltaTime;
+        m_petPosition.y += m_petVelocity.y * deltaTime;
     }
 }
 
@@ -1797,6 +1861,9 @@ void Game::RenderPet()
         float angle = atan2(toPlayer.x, toPlayer.z);
         model = glm::rotate(model, angle, glm::vec3(0.0f, 1.0f, 0.0f));
     }
+    
+    // Apply scale from GUI
+    model = glm::scale(model, glm::vec3(m_petScale));
 
     m_shader->setMat4("model", glm::value_ptr(model));
 
@@ -1818,4 +1885,256 @@ void Game::TogglePetSit()
     {
         std::cout << "Pet is now following" << std::endl;
     }
+}
+
+void Game::InitializeGUI()
+{
+    // Simple VAO/VBO for GUI rendering
+    glGenVertexArrays(1, &m_guiVAO);
+    glGenBuffers(1, &m_guiVBO);
+}
+
+void Game::ToggleGUI(GLFWwindow* window)
+{
+    m_showGUI = !m_showGUI;
+    m_window = window;
+    
+    // Toggle cursor mode
+    if (m_showGUI)
+    {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        std::cout << "GUI enabled - Cursor unlocked" << std::endl;
+    }
+    else
+    {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        std::cout << "GUI disabled - Cursor locked" << std::endl;
+    }
+}
+
+bool Game::IsMouseOverGUI(double mouseX, double mouseY, int windowWidth, int windowHeight)
+{
+    if (!m_showGUI) return false;
+    
+    // GUI panel is in top-right corner: 20% width, 40% height
+    float panelLeft = windowWidth * 0.78f;
+    float panelTop = windowHeight * 0.02f;
+    float panelRight = windowWidth * 0.98f;
+    float panelBottom = windowHeight * 0.42f;
+    
+    return mouseX >= panelLeft && mouseX <= panelRight && 
+           mouseY >= panelTop && mouseY <= panelBottom;
+}
+
+void Game::HandleGUIInteraction(GLFWwindow* window, int windowWidth, int windowHeight)
+{
+    // Get mouse position
+    double mouseX, mouseY;
+    glfwGetCursorPos(window, &mouseX, &mouseY);
+    
+    // Check if left mouse button is pressed
+    bool mousePressed = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+    
+    if (!mousePressed) return;
+    
+    // GUI panel dimensions
+    float panelWidth = windowWidth * 0.2f;
+    float panelX = windowWidth - panelWidth - windowWidth * 0.02f;
+    float panelY = windowHeight * 0.02f;
+    
+    float sliderY = panelY + 60.0f;  // Account for title space
+    float sliderSpacing = 70.0f;
+    float sliderWidth = panelWidth * 0.8f;
+    float sliderHeight = 8.0f;
+    float sliderX = panelX + panelWidth * 0.1f;
+    
+    // Helper to check and update slider
+    auto updateSlider = [&](float& value, float minVal, float maxVal, float yPos) {
+        if (mouseY >= yPos - 10 && mouseY <= yPos + sliderHeight + 10 &&
+            mouseX >= sliderX && mouseX <= sliderX + sliderWidth)
+        {
+            float percent = (mouseX - sliderX) / sliderWidth;
+            percent = glm::clamp(percent, 0.0f, 1.0f);
+            value = minVal + percent * (maxVal - minVal);
+            return true;
+        }
+        return false;
+    };
+    
+    // Update sliders
+    updateSlider(m_fov, 30.0f, 90.0f, sliderY);
+    updateSlider(m_mouseSensitivity, 0.05f, 0.3f, sliderY + sliderSpacing);
+    updateSlider(m_petScale, 0.5f, 3.0f, sliderY + sliderSpacing * 2);
+    updateSlider(m_timeSpeed, 0.1f, 5.0f, sliderY + sliderSpacing * 3);
+}
+
+void Game::RenderGUI(int windowWidth, int windowHeight)
+{
+    // Save current OpenGL state
+    GLboolean depthTestEnabled = glIsEnabled(GL_DEPTH_TEST);
+    glDisable(GL_DEPTH_TEST);
+    
+    // Setup orthographic projection for GUI
+    glm::mat4 projection = glm::ortho(0.0f, (float)windowWidth, (float)windowHeight, 0.0f, -1.0f, 1.0f);
+    glm::mat4 view = glm::mat4(1.0f);
+    
+    m_shader->use();
+    m_shader->setMat4("projection", glm::value_ptr(projection));
+    m_shader->setMat4("view", glm::value_ptr(view));
+    m_shader->setBool("unlit", true);
+    
+    // GUI panel dimensions (top-right corner)
+    float panelWidth = windowWidth * 0.2f;
+    float panelHeight = windowHeight * 0.4f;
+    float panelX = windowWidth - panelWidth - windowWidth * 0.02f;
+    float panelY = windowHeight * 0.02f;
+    
+    // Draw panel background (semi-transparent dark gray)
+    float panelVertices[] = {
+        // Position (x, y, z)         // Normal              // Color (RGBA-like, semi-transparent dark)
+        panelX, panelY, 0.0f,         0.0f, 0.0f, 1.0f,     0.1f, 0.1f, 0.1f,
+        panelX + panelWidth, panelY, 0.0f, 0.0f, 0.0f, 1.0f, 0.1f, 0.1f, 0.1f,
+        panelX + panelWidth, panelY + panelHeight, 0.0f, 0.0f, 0.0f, 1.0f, 0.1f, 0.1f, 0.1f,
+        panelX + panelWidth, panelY + panelHeight, 0.0f, 0.0f, 0.0f, 1.0f, 0.1f, 0.1f, 0.1f,
+        panelX, panelY + panelHeight, 0.0f, 0.0f, 0.0f, 1.0f, 0.1f, 0.1f, 0.1f,
+        panelX, panelY, 0.0f,         0.0f, 0.0f, 1.0f,     0.1f, 0.1f, 0.1f
+    };
+    
+    glBindVertexArray(m_guiVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_guiVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(panelVertices), panelVertices, GL_DYNAMIC_DRAW);
+    
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    
+    glm::mat4 model = glm::mat4(1.0f);
+    m_shader->setMat4("model", glm::value_ptr(model));
+    
+    // Enable blending for transparency
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    
+    // Draw title bar (top of panel)
+    float titleHeight = 30.0f;
+    float titleVertices[] = {
+        panelX, panelY, 0.0f, 0.0f, 0.0f, 1.0f, 0.2f, 0.3f, 0.4f,
+        panelX + panelWidth, panelY, 0.0f, 0.0f, 0.0f, 1.0f, 0.2f, 0.3f, 0.4f,
+        panelX + panelWidth, panelY + titleHeight, 0.0f, 0.0f, 0.0f, 1.0f, 0.2f, 0.3f, 0.4f,
+        panelX + panelWidth, panelY + titleHeight, 0.0f, 0.0f, 0.0f, 1.0f, 0.2f, 0.3f, 0.4f,
+        panelX, panelY + titleHeight, 0.0f, 0.0f, 0.0f, 1.0f, 0.2f, 0.3f, 0.4f,
+        panelX, panelY, 0.0f, 0.0f, 0.0f, 1.0f, 0.2f, 0.3f, 0.4f
+    };
+    glBufferData(GL_ARRAY_BUFFER, sizeof(titleVertices), titleVertices, GL_DYNAMIC_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    
+    // Draw sliders for each setting
+    float sliderY = panelY + 60.0f;  // Start below title
+    float sliderSpacing = 70.0f;
+    float sliderWidth = panelWidth * 0.8f;
+    float sliderHeight = 8.0f;
+    float sliderX = panelX + panelWidth * 0.1f;
+    
+    // Helper lambda to draw a slider
+    auto drawSlider = [&](float value, float minVal, float maxVal, float yPos, glm::vec3 color) {
+        // Slider track (gray)
+        float trackVertices[] = {
+            sliderX, yPos, 0.0f, 0.0f, 0.0f, 1.0f, 0.3f, 0.3f, 0.3f,
+            sliderX + sliderWidth, yPos, 0.0f, 0.0f, 0.0f, 1.0f, 0.3f, 0.3f, 0.3f,
+            sliderX + sliderWidth, yPos + sliderHeight, 0.0f, 0.0f, 0.0f, 1.0f, 0.3f, 0.3f, 0.3f,
+            sliderX + sliderWidth, yPos + sliderHeight, 0.0f, 0.0f, 0.0f, 1.0f, 0.3f, 0.3f, 0.3f,
+            sliderX, yPos + sliderHeight, 0.0f, 0.0f, 0.0f, 1.0f, 0.3f, 0.3f, 0.3f,
+            sliderX, yPos, 0.0f, 0.0f, 0.0f, 1.0f, 0.3f, 0.3f, 0.3f
+        };
+        
+        glBufferData(GL_ARRAY_BUFFER, sizeof(trackVertices), trackVertices, GL_DYNAMIC_DRAW);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        
+        // Slider fill (colored, based on value)
+        float fillPercent = (value - minVal) / (maxVal - minVal);
+        float fillWidth = sliderWidth * fillPercent;
+        float fillVertices[] = {
+            sliderX, yPos, 0.0f, 0.0f, 0.0f, 1.0f, color.r, color.g, color.b,
+            sliderX + fillWidth, yPos, 0.0f, 0.0f, 0.0f, 1.0f, color.r, color.g, color.b,
+            sliderX + fillWidth, yPos + sliderHeight, 0.0f, 0.0f, 0.0f, 1.0f, color.r, color.g, color.b,
+            sliderX + fillWidth, yPos + sliderHeight, 0.0f, 0.0f, 0.0f, 1.0f, color.r, color.g, color.b,
+            sliderX, yPos + sliderHeight, 0.0f, 0.0f, 0.0f, 1.0f, color.r, color.g, color.b,
+            sliderX, yPos, 0.0f, 0.0f, 0.0f, 1.0f, color.r, color.g, color.b
+        };
+        
+        glBufferData(GL_ARRAY_BUFFER, sizeof(fillVertices), fillVertices, GL_DYNAMIC_DRAW);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        
+        // Slider handle (small square)
+        float handleSize = 16.0f;
+        float handleX = sliderX + fillWidth - handleSize/2;
+        float handleY = yPos + sliderHeight/2 - handleSize/2;
+        float handleVertices[] = {
+            handleX, handleY, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+            handleX + handleSize, handleY, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+            handleX + handleSize, handleY + handleSize, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+            handleX + handleSize, handleY + handleSize, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+            handleX, handleY + handleSize, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+            handleX, handleY, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f
+        };
+        
+        glBufferData(GL_ARRAY_BUFFER, sizeof(handleVertices), handleVertices, GL_DYNAMIC_DRAW);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    };
+    
+    // Helper to draw simple text label above slider
+    auto drawTextLabel = [&](const char* text, float yPos, glm::vec3 color) {
+        float textX = sliderX;
+        float textY = yPos - 25.0f;
+        float charWidth = 3.0f;
+        float charHeight = 10.0f;
+        float charSpacing = 5.0f;
+        
+        // Draw simple text using small rectangles
+        for (int i = 0; text[i] != '\0'; i++)
+        {
+            float x = textX + i * charSpacing;
+            float charVertices[] = {
+                x, textY, 0.0f, 0.0f, 0.0f, 1.0f, color.r, color.g, color.b,
+                x + charWidth, textY, 0.0f, 0.0f, 0.0f, 1.0f, color.r, color.g, color.b,
+                x + charWidth, textY + charHeight, 0.0f, 0.0f, 0.0f, 1.0f, color.r, color.g, color.b,
+                x + charWidth, textY + charHeight, 0.0f, 0.0f, 0.0f, 1.0f, color.r, color.g, color.b,
+                x, textY + charHeight, 0.0f, 0.0f, 0.0f, 1.0f, color.r, color.g, color.b,
+                x, textY, 0.0f, 0.0f, 0.0f, 1.0f, color.r, color.g, color.b
+            };
+            glBufferData(GL_ARRAY_BUFFER, sizeof(charVertices), charVertices, GL_DYNAMIC_DRAW);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+    };
+    
+    // Draw sliders and text labels for each setting
+    // FOV (blue) - Camera field of view
+    drawTextLabel("FOV", sliderY, glm::vec3(0.8f, 0.8f, 0.8f));
+    drawSlider(m_fov, 30.0f, 90.0f, sliderY, glm::vec3(0.2f, 0.6f, 1.0f));
+    
+    // Mouse Sensitivity (orange) - Camera rotation speed
+    drawTextLabel("MOUSE SENS", sliderY + sliderSpacing, glm::vec3(0.8f, 0.8f, 0.8f));
+    drawSlider(m_mouseSensitivity, 0.05f, 0.3f, sliderY + sliderSpacing, glm::vec3(1.0f, 0.6f, 0.2f));
+    
+    // Pet Scale (pink) - Pet size multiplier
+    drawTextLabel("PET SCALE", sliderY + sliderSpacing * 2, glm::vec3(0.8f, 0.8f, 0.8f));
+    drawSlider(m_petScale, 0.5f, 3.0f, sliderY + sliderSpacing * 2, glm::vec3(0.8f, 0.4f, 0.6f));
+    
+    // Time Speed (green) - Day/night cycle speed
+    drawTextLabel("TIME SPEED", sliderY + sliderSpacing * 3, glm::vec3(0.8f, 0.8f, 0.8f));
+    drawSlider(m_timeSpeed, 0.1f, 5.0f, sliderY + sliderSpacing * 3, glm::vec3(0.6f, 1.0f, 0.4f));
+    
+    glDisable(GL_BLEND);
+    glBindVertexArray(0);
+    
+    m_shader->setBool("unlit", false);
+    
+    // Restore OpenGL state
+    if (depthTestEnabled)
+        glEnable(GL_DEPTH_TEST);
 }

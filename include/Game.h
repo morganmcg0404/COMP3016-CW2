@@ -42,6 +42,9 @@ public:
     
     // Get camera position for debug display
     glm::vec3 GetCameraPosition() const;
+    
+    // Get GUI state
+    bool IsGUIOpen() const { return m_showGUI; }
 
 private:
     bool m_initialized;
@@ -107,10 +110,25 @@ private:
     glm::vec3 m_petVelocity;
     bool m_petSitting;
     glm::vec3 m_petSitPosition;
+    float m_petScale;
     void InitializePet();
     void UpdatePet(float deltaTime);
     void RenderPet();
     void TogglePetSit();
+    
+    // GUI System
+    bool m_showGUI;
+    unsigned int m_guiVAO, m_guiVBO;
+    float m_renderDistance;
+    float m_mouseSensitivity;
+    float m_fov;
+    float m_timeSpeed;
+    GLFWwindow* m_window;  // Store window pointer for cursor management
+    void InitializeGUI();
+    void RenderGUI(int windowWidth, int windowHeight);
+    void ToggleGUI(GLFWwindow* window);
+    bool IsMouseOverGUI(double mouseX, double mouseY, int windowWidth, int windowHeight);
+    void HandleGUIInteraction(GLFWwindow* window, int windowWidth, int windowHeight);
 
     // Collision helpers
     bool WouldCollide(const glm::vec3& newPosition);

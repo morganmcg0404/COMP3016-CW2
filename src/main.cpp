@@ -24,6 +24,14 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 // Mouse callback
 void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 {
+    // Don't process camera movement if GUI is open
+    if (g_game && g_game->IsGUIOpen())
+    {
+        lastX = (float)xpos;
+        lastY = (float)ypos;
+        return;
+    }
+    
     if (firstMouse)
     {
         lastX = (float)xpos;
