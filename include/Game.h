@@ -100,6 +100,17 @@ private:
     unsigned int m_outlineVAO, m_outlineVBO;
     void InitializeBlockOutline();
     void RenderBlockOutline();
+    
+    // Pet system
+    unsigned int m_petVAO, m_petVBO;
+    glm::vec3 m_petPosition;
+    glm::vec3 m_petVelocity;
+    bool m_petSitting;
+    glm::vec3 m_petSitPosition;
+    void InitializePet();
+    void UpdatePet(float deltaTime);
+    void RenderPet();
+    void TogglePetSit();
 
     // Collision helpers
     bool WouldCollide(const glm::vec3& newPosition);

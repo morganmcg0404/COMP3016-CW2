@@ -26,7 +26,8 @@ Game::Game()
       m_timeOfDay(0.25f), m_lightUpdateTimer(0.0f),  // Start at dawn (0.25 = 6am)
       m_skyColor(0.53f, 0.81f, 0.92f),  // Start with bright blue sky
       m_handBobTimer(0.0f), m_handSwingTimer(0.0f), m_isSwinging(false), m_debugUpdateTimer(0.0f),
-      m_selectedSlot(0)  // Start with empty hand
+      m_selectedSlot(0),  // Start with empty hand
+      m_petPosition(0.0f, 50.0f, 0.0f), m_petVelocity(0.0f), m_petSitting(false), m_petSitPosition(0.0f)
 {
     // Initialize hotbar with different blocks (slot 0 is empty hand)
     m_hotbarItems[0] = BlockType::AIR;      // Empty hand
@@ -124,6 +125,11 @@ bool Game::Initialize()
     // Initialize block outline
     InitializeBlockOutline();
     std::cout << "Block outline initialized" << std::endl;
+    
+    // Initialize pet (spawn near player)
+    m_petPosition = m_camera->Position + glm::vec3(2.0f, 0.0f, 2.0f);
+    InitializePet();
+    std::cout << "Pet initialized" << std::endl;
 
     m_initialized = true;
     std::cout << "Game systems initialized successfully" << std::endl;
@@ -321,6 +327,9 @@ void Game::Update(float deltaTime)
     
     // Update physics for gravity-affected blocks
     m_chunkManager->UpdatePhysics(deltaTime);
+    
+    // Update pet
+    UpdatePet(deltaTime);
 
     // Debug: Print current biome and closest other biome
     static float biomeCheckTimer = 0.0f;
@@ -442,6 +451,9 @@ void Game::Render(GLFWwindow* window)
 
     // Render player model
     RenderPlayer();
+    
+    // Render pet
+    RenderPet();
     
     // Render hand (last so it's always on top)
     RenderHand();
@@ -698,6 +710,10 @@ void Game::Shutdown()
     // Cleanup block outline
     glDeleteVertexArrays(1, &m_outlineVAO);
     glDeleteBuffers(1, &m_outlineVBO);
+    
+    // Cleanup pet
+    glDeleteVertexArrays(1, &m_petVAO);
+    glDeleteBuffers(1, &m_petVBO);
 
     // Cleanup shadow map
     glDeleteFramebuffers(1, &m_shadowMapFBO);
@@ -1343,10 +1359,33 @@ void Game::ProcessMouseButton(int button, int action)
         }
     }
     
-    // Right mouse button (button 1) - Place block
+    // Right mouse button (button 1) - Place block or interact with pet
     if (button == 1 && action == 1)  // GLFW_MOUSE_BUTTON_RIGHT and GLFW_PRESS
     {
         std::cout << "Right click detected, selected slot: " << m_selectedSlot << std::endl;
+        
+        // First check if clicking on pet
+        glm::vec3 rayDir = m_camera->Front;
+        glm::vec3 rayOrigin = m_camera->Position;
+        float petDistance = glm::length(m_petPosition - rayOrigin);
+        
+        // Simple sphere collision for pet interaction (within 8 blocks)
+        if (petDistance <= 8.0f)
+        {
+            // Check if ray passes near pet
+            float t = glm::dot(m_petPosition - rayOrigin, rayDir);
+            if (t > 0)
+            {
+                glm::vec3 closest = rayOrigin + rayDir * t;
+                float distToPet = glm::length(closest - m_petPosition);
+                
+                if (distToPet < 0.5f)  // Hit pet
+                {
+                    TogglePetSit();
+                    return;  // Don't place block
+                }
+            }
+        }
         
         // Only place if not holding empty hand
         if (m_selectedSlot > 0)
@@ -1683,4 +1722,174 @@ void Game::RenderBlockOutline()
     // Restore OpenGL state
     if (depthTestEnabled)
         glEnable(GL_DEPTH_TEST);
+}
+
+void Game::InitializePet()
+{
+    // Create a small cube for the pet (0.5 blocks in size)
+    float size = 0.25f;
+    float vertices[] = {
+        // Position                  // Normal           // Color (brown/tan)
+        // Front face
+        -size, -size,  size,  0.0f,  0.0f,  1.0f,  0.8f, 0.6f, 0.4f,
+         size, -size,  size,  0.0f,  0.0f,  1.0f,  0.8f, 0.6f, 0.4f,
+         size,  size,  size,  0.0f,  0.0f,  1.0f,  0.8f, 0.6f, 0.4f,
+         size,  size,  size,  0.0f,  0.0f,  1.0f,  0.8f, 0.6f, 0.4f,
+        -size,  size,  size,  0.0f,  0.0f,  1.0f,  0.8f, 0.6f, 0.4f,
+        -size, -size,  size,  0.0f,  0.0f,  1.0f,  0.8f, 0.6f, 0.4f,
+        // Back face
+        -size, -size, -size,  0.0f,  0.0f, -1.0f,  0.8f, 0.6f, 0.4f,
+         size, -size, -size,  0.0f,  0.0f, -1.0f,  0.8f, 0.6f, 0.4f,
+         size,  size, -size,  0.0f,  0.0f, -1.0f,  0.8f, 0.6f, 0.4f,
+         size,  size, -size,  0.0f,  0.0f, -1.0f,  0.8f, 0.6f, 0.4f,
+        -size,  size, -size,  0.0f,  0.0f, -1.0f,  0.8f, 0.6f, 0.4f,
+        -size, -size, -size,  0.0f,  0.0f, -1.0f,  0.8f, 0.6f, 0.4f,
+        // Left face
+        -size, -size, -size, -1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
+        -size, -size,  size, -1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
+        -size,  size,  size, -1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
+        -size,  size,  size, -1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
+        -size,  size, -size, -1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
+        -size, -size, -size, -1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
+        // Right face
+         size, -size, -size,  1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
+         size, -size,  size,  1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
+         size,  size,  size,  1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
+         size,  size,  size,  1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
+         size,  size, -size,  1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
+         size, -size, -size,  1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
+        // Top face
+        -size,  size, -size,  0.0f,  1.0f,  0.0f,  0.9f, 0.7f, 0.5f,
+         size,  size, -size,  0.0f,  1.0f,  0.0f,  0.9f, 0.7f, 0.5f,
+         size,  size,  size,  0.0f,  1.0f,  0.0f,  0.9f, 0.7f, 0.5f,
+         size,  size,  size,  0.0f,  1.0f,  0.0f,  0.9f, 0.7f, 0.5f,
+        -size,  size,  size,  0.0f,  1.0f,  0.0f,  0.9f, 0.7f, 0.5f,
+        -size,  size, -size,  0.0f,  1.0f,  0.0f,  0.9f, 0.7f, 0.5f,
+        // Bottom face
+        -size, -size, -size,  0.0f, -1.0f,  0.0f,  0.6f, 0.4f, 0.2f,
+         size, -size, -size,  0.0f, -1.0f,  0.0f,  0.6f, 0.4f, 0.2f,
+         size, -size,  size,  0.0f, -1.0f,  0.0f,  0.6f, 0.4f, 0.2f,
+         size, -size,  size,  0.0f, -1.0f,  0.0f,  0.6f, 0.4f, 0.2f,
+        -size, -size,  size,  0.0f, -1.0f,  0.0f,  0.6f, 0.4f, 0.2f,
+        -size, -size, -size,  0.0f, -1.0f,  0.0f,  0.6f, 0.4f, 0.2f,
+    };
+
+    glGenVertexArrays(1, &m_petVAO);
+    glGenBuffers(1, &m_petVBO);
+
+    glBindVertexArray(m_petVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_petVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    // Position attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Normal attribute
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    // Color attribute
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+
+    glBindVertexArray(0);
+}
+
+void Game::UpdatePet(float deltaTime)
+{
+    if (m_petSitting)
+    {
+        // If sitting, stay at sit position
+        m_petPosition = m_petSitPosition;
+        m_petVelocity = glm::vec3(0.0f);
+        return;
+    }
+
+    // Follow the player
+    glm::vec3 targetPosition = m_camera->Position - glm::vec3(0.0f, PLAYER_EYE_HEIGHT, 0.0f);
+    glm::vec3 toPlayer = targetPosition - m_petPosition;
+    float distance = glm::length(toPlayer);
+
+    // Keep a distance of 4-6 blocks from the player
+    const float MIN_DISTANCE = 4.0f;
+    const float MAX_DISTANCE = 20.0f;
+    const float MOVE_SPEED = 5.0f;
+
+    // If too far, teleport to player
+    if (distance > MAX_DISTANCE)
+    {
+        m_petPosition = targetPosition + glm::vec3(2.0f, 0.0f, 2.0f);
+        m_petVelocity = glm::vec3(0.0f);
+        return;
+    }
+
+    // Move towards player if beyond minimum distance
+    if (distance > MIN_DISTANCE)
+    {
+        glm::vec3 direction = glm::normalize(toPlayer);
+        glm::vec3 targetVelocity = direction * MOVE_SPEED;
+        
+        // Smooth velocity changes
+        m_petVelocity = glm::mix(m_petVelocity, targetVelocity, deltaTime * 5.0f);
+        
+        // Apply horizontal movement
+        glm::vec3 horizontalVelocity = glm::vec3(m_petVelocity.x, 0.0f, m_petVelocity.z);
+        m_petPosition += horizontalVelocity * deltaTime;
+    }
+    else
+    {
+        // Close enough, slow down
+        m_petVelocity = glm::mix(m_petVelocity, glm::vec3(0.0f), deltaTime * 10.0f);
+    }
+
+    // Apply gravity
+    const float GRAVITY = -20.0f;
+    m_petVelocity.y += GRAVITY * deltaTime;
+    m_petPosition.y += m_petVelocity.y * deltaTime;
+
+    // Ground collision - check if there's a solid block below
+    glm::vec3 belowPos = m_petPosition - glm::vec3(0.0f, 0.1f, 0.0f);
+    if (m_chunkManager->IsSolid(belowPos.x, belowPos.y, belowPos.z))
+    {
+        // Find the top of the block
+        int blockY = (int)floor(belowPos.y);
+        m_petPosition.y = (float)blockY + 1.25f; // 1.0 for block top + 0.25 for pet half-height
+        m_petVelocity.y = 0.0f;
+    }
+}
+
+void Game::RenderPet()
+{
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, m_petPosition);
+    
+    // Rotate pet to face the player
+    if (!m_petSitting)
+    {
+        glm::vec3 toPlayer = m_camera->Position - m_petPosition;
+        float angle = atan2(toPlayer.x, toPlayer.z);
+        model = glm::rotate(model, angle, glm::vec3(0.0f, 1.0f, 0.0f));
+    }
+
+    m_shader->setMat4("model", glm::value_ptr(model));
+
+    glBindVertexArray(m_petVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glBindVertexArray(0);
+}
+
+void Game::TogglePetSit()
+{
+    m_petSitting = !m_petSitting;
+    if (m_petSitting)
+    {
+        // Remember position where pet sits
+        m_petSitPosition = m_petPosition;
+        std::cout << "Pet is now sitting" << std::endl;
+    }
+    else
+    {
+        std::cout << "Pet is now following" << std::endl;
+    }
 }
