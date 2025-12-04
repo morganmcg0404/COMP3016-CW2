@@ -330,45 +330,6 @@ void Game::Update(float deltaTime)
     
     // Update pet
     UpdatePet(deltaTime);
-
-    // Debug: Print current biome and closest other biome
-    static float biomeCheckTimer = 0.0f;
-    biomeCheckTimer += deltaTime;
-    if (biomeCheckTimer >= 2.0f)
-    {
-        biomeCheckTimer = 0.0f;
-        
-        BiomeType currentBiome = TerrainGenerator::GetBiome(m_camera->Position.x, m_camera->Position.z);
-        float noiseValue = TerrainGenerator::GetBiomeNoise(m_camera->Position.x, m_camera->Position.z);
-        std::string biomeName = (currentBiome == BiomeType::GRASSLAND) ? "GRASSLAND (Green)" : "DESERT (Brown)";
-        
-        // Find closest other biome
-        float distance = 0.0f;
-        float angle = 0.0f;
-        TerrainGenerator::FindClosestOtherBiome(m_camera->Position.x, m_camera->Position.z, distance, angle);
-        
-        std::string otherBiomeName = (currentBiome == BiomeType::GRASSLAND) ? "DESERT" : "GRASSLAND";
-        std::string direction = "";
-        
-        // Convert angle to compass direction
-        if (angle >= 337.5f || angle < 22.5f) direction = "East";
-        else if (angle >= 22.5f && angle < 67.5f) direction = "Northeast";
-        else if (angle >= 67.5f && angle < 112.5f) direction = "North";
-        else if (angle >= 112.5f && angle < 157.5f) direction = "Northwest";
-        else if (angle >= 157.5f && angle < 202.5f) direction = "West";
-        else if (angle >= 202.5f && angle < 247.5f) direction = "Southwest";
-        else if (angle >= 247.5f && angle < 292.5f) direction = "South";
-        else direction = "Southeast";
-        
-        std::cout << "=== Biome Info ===" << std::endl;
-        std::cout << "Position: (" << (int)m_camera->Position.x << ", " << (int)m_camera->Position.z << ")" << std::endl;
-        std::cout << "Current Biome: " << biomeName << " | Noise: " << noiseValue << std::endl;
-        std::cout << "Closest " << otherBiomeName << ": " << (int)distance << " blocks " << direction 
-                  << " (" << (int)angle << "°)" << std::endl;
-        std::cout << "Grounded: " << (m_camera->IsGrounded ? "Yes" : "No") 
-                  << " | Sprinting: " << (m_camera->IsSprinting ? "Yes" : "No") << std::endl;
-        std::cout << std::endl;
-    }
 }
 
 void Game::Render(GLFWwindow* window)
@@ -858,21 +819,7 @@ void Game::UpdateDayNightCycle(float deltaTime)
             m_skyColor = glm::mix(duskColor, nightColor, nightProgress);
         }
 
-        // Debug output
-        static int lastHour = -1;
-        int hour = (int)(m_timeOfDay * 24.0f);
-        if (hour != lastHour)
-        {
-            lastHour = hour;
-            std::string timeOfDayStr;
-            if (hour >= 6 && hour < 12) timeOfDayStr = "Morning";
-            else if (hour >= 12 && hour < 18) timeOfDayStr = "Afternoon";
-            else if (hour >= 18 && hour < 22) timeOfDayStr = "Evening";
-            else timeOfDayStr = "Night";
-
-            std::cout << "Time: " << hour << ":00 (" << timeOfDayStr << ") | Light: " 
-                      << (int)(lightIntensity * 100) << "%" << std::endl;
-        }
+        // Time of day updates silently
     }
 }
 
@@ -1362,8 +1309,6 @@ void Game::ProcessMouseButton(int button, int action)
     // Right mouse button (button 1) - Place block or interact with pet
     if (button == 1 && action == 1)  // GLFW_MOUSE_BUTTON_RIGHT and GLFW_PRESS
     {
-        std::cout << "Right click detected, selected slot: " << m_selectedSlot << std::endl;
-        
         // First check if clicking on pet
         glm::vec3 rayDir = m_camera->Front;
         glm::vec3 rayOrigin = m_camera->Position;
@@ -1396,10 +1341,6 @@ void Game::ProcessMouseButton(int button, int action)
                 // Place block adjacent to hit surface
                 glm::vec3 placePos = hitPos + normal;
                 
-                std::cout << "Hit pos: " << hitPos.x << ", " << hitPos.y << ", " << hitPos.z << std::endl;
-                std::cout << "Normal: " << normal.x << ", " << normal.y << ", " << normal.z << std::endl;
-                std::cout << "Place pos: " << placePos.x << ", " << placePos.y << ", " << placePos.z << std::endl;
-                
                 // Don't place block where player is standing
                 glm::vec3 playerPos = m_camera->Position;
                 
@@ -1407,26 +1348,11 @@ void Game::ProcessMouseButton(int button, int action)
                 // Use full 3D distance check
                 float dist = glm::distance(placePos, playerPos);
                 
-                std::cout << "Distance from player: " << dist << std::endl;
-                
                 if (dist > 0.5f)  // Reduced radius so player can place blocks closer
                 {
-                    std::cout << "Placing block!" << std::endl;
                     m_chunkManager->PlaceBlock(placePos.x, placePos.y, placePos.z, m_hotbarItems[m_selectedSlot]);
                 }
-                else
-                {
-                    std::cout << "Too close to player!" << std::endl;
-                }
             }
-            else
-            {
-                std::cout << "No block hit" << std::endl;
-            }
-        }
-        else
-        {
-            std::cout << "Empty hand selected" << std::endl;
         }
     }
 }

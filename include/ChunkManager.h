@@ -173,25 +173,18 @@ public:
     
     void PlaceBlock(float worldX, float worldY, float worldZ, BlockType blockType)
     {
-        std::cout << "PlaceBlock called at: " << worldX << ", " << worldY << ", " << worldZ << std::endl;
-        
         // Convert world coordinates to chunk coordinates
         int chunkX = (int)floor(worldX / CHUNK_SIZE);
         int chunkZ = (int)floor(worldZ / CHUNK_SIZE);
-        
-        std::cout << "Chunk coords: " << chunkX << ", " << chunkZ << std::endl;
         
         // Get local coordinates within chunk
         int localX = ((int)floor(worldX) % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
         int localY = (int)floor(worldY);
         int localZ = ((int)floor(worldZ) % CHUNK_SIZE + CHUNK_SIZE) % CHUNK_SIZE;
         
-        std::cout << "Local coords: " << localX << ", " << localY << ", " << localZ << std::endl;
-        
         // Check bounds
         if (localY < 0 || localY >= CHUNK_HEIGHT)
         {
-            std::cout << "Out of bounds!" << std::endl;
             return;
         }
         
@@ -200,18 +193,14 @@ public:
         auto it = m_chunks.find(key);
         if (it != m_chunks.end())
         {
-            std::cout << "Chunk found" << std::endl;
             BlockType existingBlock = it->second->blocks[localX][localY][localZ].type;
-            std::cout << "Existing block type: " << (int)existingBlock << std::endl;
             
             // Check if space is empty
             if (existingBlock == BlockType::AIR)
             {
-                std::cout << "Placing block..." << std::endl;
                 // Place block
                 it->second->SetBlock(localX, localY, localZ, blockType);
                 it->second->GenerateMesh();
-                std::cout << "Block placed and mesh regenerated" << std::endl;
                 
                 // Regenerate neighboring chunks if block is on edge
                 if (localX == 0)
@@ -243,14 +232,6 @@ public:
                         backIt->second->GenerateMesh();
                 }
             }
-            else
-            {
-                std::cout << "Space not empty!" << std::endl;
-            }
-        }
-        else
-        {
-            std::cout << "Chunk not found!" << std::endl;
         }
     }
     

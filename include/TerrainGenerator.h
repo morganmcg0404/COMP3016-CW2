@@ -552,15 +552,8 @@ public:
                 {
                     PlaceTree(chunk, x, groundY, z);
                     treesPlaced++;
-                    std::cout << "Placed tree at chunk (" << chunk->position.x << ", " << chunk->position.z 
-                              << ") local (" << x << ", " << z << ") world (" << worldX << ", " << worldZ << ")" << std::endl;
                 }
             }
-        }
-        
-        if (treesPlaced > 0)
-        {
-            std::cout << "Total trees placed in chunk: " << treesPlaced << std::endl;
         }
 
         chunk->GenerateMesh();
