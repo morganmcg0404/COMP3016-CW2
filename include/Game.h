@@ -1,14 +1,60 @@
 #pragma once
 
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <memory>
+#include <vector>
+#include <string>
 #include "Block.h"
 
 // Forward declarations
 class Camera;
 class Shader;
 class ChunkManager;
+
+// Model structures
+struct Vertex {
+    glm::vec3 Position;
+    glm::vec3 Normal;
+    glm::vec3 Color;
+    glm::vec2 TexCoords;
+};
+
+struct Mesh {
+    std::vector<Vertex> vertices;
+    std::vector<unsigned int> indices;
+    unsigned int textureID;
+    unsigned int VAO, VBO, EBO;
+    
+    void SetupMesh() {
+        glGenVertexArrays(1, &VAO);
+        glGenBuffers(1, &VBO);
+        glGenBuffers(1, &EBO);
+        
+        glBindVertexArray(VAO);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), &vertices[0], GL_STATIC_DRAW);
+        
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+        
+        // Position
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+        // Normal
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Normal));
+        // Color
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Color));
+        // TexCoords
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, TexCoords));
+        
+        glBindVertexArray(0);
+    }
+};
 
 class Game
 {
@@ -106,6 +152,7 @@ private:
     
     // Pet system
     unsigned int m_petVAO, m_petVBO;
+    std::vector<Mesh> m_petMeshes;
     glm::vec3 m_petPosition;
     glm::vec3 m_petVelocity;
     bool m_petSitting;
@@ -115,6 +162,13 @@ private:
     void UpdatePet(float deltaTime);
     void RenderPet();
     void TogglePetSit();
+    
+    // Model loading
+    void LoadModel(const std::string& path);
+    void ProcessNode(void* node, const void* scene);
+    Mesh ProcessMesh(void* mesh, const void* scene);
+    unsigned int LoadTexture(const std::string& path);
+    std::string m_modelDirectory;
     
     // GUI System
     bool m_showGUI;

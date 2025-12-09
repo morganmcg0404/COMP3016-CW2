@@ -4,13 +4,16 @@ out vec4 FragColor;
 in vec3 FragPos;
 in vec3 Normal;
 in vec3 Color;
+in vec2 TexCoord;
 in vec4 FragPosLightSpace;
 
 uniform vec3 lightPos;
 uniform vec3 viewPos;
 uniform vec3 lightColor;
 uniform sampler2D shadowMap;
+uniform sampler2D diffuseTexture;
 uniform bool unlit;
+uniform bool useTexture;
 
 float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
 {
@@ -48,9 +51,16 @@ float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
 
 void main()
 {
-    // If unlit mode, just output the vertex color directly
+    // Get base color from texture or vertex color
+    vec3 baseColor = Color;
+    if (useTexture) {
+        vec4 texColor = texture(diffuseTexture, TexCoord);
+        baseColor = texColor.rgb;
+    }
+    
+    // If unlit mode, just output the base color directly
     if (unlit) {
-        FragColor = vec4(Color, 1.0);
+        FragColor = vec4(baseColor, 1.0);
         return;
     }
     
@@ -75,7 +85,7 @@ void main()
     float shadow = ShadowCalculation(FragPosLightSpace, norm, lightDir);
     
     // Apply shadow with darker grey (60% darkening)
-    vec3 result = (ambient + (1.0 - shadow * 0.6) * (diffuse + specular)) * Color;
+    vec3 result = (ambient + (1.0 - shadow * 0.6) * (diffuse + specular)) * baseColor;
     
     FragColor = vec4(result, 1.0);
 }

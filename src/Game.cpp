@@ -20,6 +20,12 @@ int TerrainGenerator::worldSeed = 0;
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
+// Windows GDI+ for texture loading
+#define NOMINMAX  // Prevent Windows.h from defining min/max macros
+#include <windows.h>
+#include <gdiplus.h>
+#pragma comment(lib, "gdiplus.lib")
+
 Game::Game()
     : m_initialized(false), m_firstMouse(true), m_lastX(640.0f), m_lastY(360.0f), m_sprintKeyPressed(false),
       m_isPlayerMoving(false), m_isCrouching(false), m_crouchOffset(0.0f),
@@ -61,6 +67,12 @@ bool Game::Initialize()
     try
     {
         m_shader = std::make_unique<Shader>("resources/shaders/basic.vert", "resources/shaders/basic.frag");
+        
+        // Initialize texture uniforms
+        m_shader->use();
+        m_shader->setInt("shadowMap", 0);
+        m_shader->setInt("diffuseTexture", 1);
+        m_shader->setBool("useTexture", false);
     }
     catch (...)
     {
@@ -1689,74 +1701,10 @@ void Game::RenderBlockOutline()
 
 void Game::InitializePet()
 {
-    // Create a small cube for the pet (0.5 blocks in size)
-    float size = 0.25f;
-    float vertices[] = {
-        // Position                  // Normal           // Color (brown/tan)
-        // Front face
-        -size, -size,  size,  0.0f,  0.0f,  1.0f,  0.8f, 0.6f, 0.4f,
-         size, -size,  size,  0.0f,  0.0f,  1.0f,  0.8f, 0.6f, 0.4f,
-         size,  size,  size,  0.0f,  0.0f,  1.0f,  0.8f, 0.6f, 0.4f,
-         size,  size,  size,  0.0f,  0.0f,  1.0f,  0.8f, 0.6f, 0.4f,
-        -size,  size,  size,  0.0f,  0.0f,  1.0f,  0.8f, 0.6f, 0.4f,
-        -size, -size,  size,  0.0f,  0.0f,  1.0f,  0.8f, 0.6f, 0.4f,
-        // Back face
-        -size, -size, -size,  0.0f,  0.0f, -1.0f,  0.8f, 0.6f, 0.4f,
-         size, -size, -size,  0.0f,  0.0f, -1.0f,  0.8f, 0.6f, 0.4f,
-         size,  size, -size,  0.0f,  0.0f, -1.0f,  0.8f, 0.6f, 0.4f,
-         size,  size, -size,  0.0f,  0.0f, -1.0f,  0.8f, 0.6f, 0.4f,
-        -size,  size, -size,  0.0f,  0.0f, -1.0f,  0.8f, 0.6f, 0.4f,
-        -size, -size, -size,  0.0f,  0.0f, -1.0f,  0.8f, 0.6f, 0.4f,
-        // Left face
-        -size, -size, -size, -1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
-        -size, -size,  size, -1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
-        -size,  size,  size, -1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
-        -size,  size,  size, -1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
-        -size,  size, -size, -1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
-        -size, -size, -size, -1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
-        // Right face
-         size, -size, -size,  1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
-         size, -size,  size,  1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
-         size,  size,  size,  1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
-         size,  size,  size,  1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
-         size,  size, -size,  1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
-         size, -size, -size,  1.0f,  0.0f,  0.0f,  0.7f, 0.5f, 0.3f,
-        // Top face
-        -size,  size, -size,  0.0f,  1.0f,  0.0f,  0.9f, 0.7f, 0.5f,
-         size,  size, -size,  0.0f,  1.0f,  0.0f,  0.9f, 0.7f, 0.5f,
-         size,  size,  size,  0.0f,  1.0f,  0.0f,  0.9f, 0.7f, 0.5f,
-         size,  size,  size,  0.0f,  1.0f,  0.0f,  0.9f, 0.7f, 0.5f,
-        -size,  size,  size,  0.0f,  1.0f,  0.0f,  0.9f, 0.7f, 0.5f,
-        -size,  size, -size,  0.0f,  1.0f,  0.0f,  0.9f, 0.7f, 0.5f,
-        // Bottom face
-        -size, -size, -size,  0.0f, -1.0f,  0.0f,  0.6f, 0.4f, 0.2f,
-         size, -size, -size,  0.0f, -1.0f,  0.0f,  0.6f, 0.4f, 0.2f,
-         size, -size,  size,  0.0f, -1.0f,  0.0f,  0.6f, 0.4f, 0.2f,
-         size, -size,  size,  0.0f, -1.0f,  0.0f,  0.6f, 0.4f, 0.2f,
-        -size, -size,  size,  0.0f, -1.0f,  0.0f,  0.6f, 0.4f, 0.2f,
-        -size, -size, -size,  0.0f, -1.0f,  0.0f,  0.6f, 0.4f, 0.2f,
-    };
-
-    glGenVertexArrays(1, &m_petVAO);
-    glGenBuffers(1, &m_petVBO);
-
-    glBindVertexArray(m_petVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, m_petVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    // Position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // Normal attribute
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-
-    // Color attribute
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(6 * sizeof(float)));
-    glEnableVertexAttribArray(2);
-
-    glBindVertexArray(0);
+    // Load Tom model
+    LoadModel("resources/models/Tom/TomAdult (merge).fbx");
+    
+    std::cout << "Pet model loaded with " << m_petMeshes.size() << " meshes" << std::endl;
 }
 
 void Game::UpdatePet(float deltaTime)
@@ -1862,14 +1810,43 @@ void Game::RenderPet()
         model = glm::rotate(model, angle, glm::vec3(0.0f, 1.0f, 0.0f));
     }
     
-    // Apply scale from GUI
-    model = glm::scale(model, glm::vec3(m_petScale));
+    // Apply scale from GUI (Tom model is large, so scale down)
+    model = glm::scale(model, glm::vec3(m_petScale * 0.01f));
 
     m_shader->setMat4("model", glm::value_ptr(model));
 
-    glBindVertexArray(m_petVAO);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
-    glBindVertexArray(0);
+    // Render all meshes
+    static bool debugPrinted = false;
+    for (size_t i = 0; i < m_petMeshes.size(); i++)
+    {
+        // Bind texture if available
+        if (m_petMeshes[i].textureID != 0)
+        {
+            if (!debugPrinted)
+            {
+                std::cout << "Rendering mesh " << i << " with texture ID: " << m_petMeshes[i].textureID << std::endl;
+            }
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, m_petMeshes[i].textureID);
+            m_shader->setInt("diffuseTexture", 1);
+            m_shader->setBool("useTexture", true);
+        }
+        else
+        {
+            if (!debugPrinted)
+            {
+                std::cout << "Rendering mesh " << i << " without texture (using vertex colors)" << std::endl;
+            }
+            m_shader->setBool("useTexture", false);
+        }
+        
+        glBindVertexArray(m_petMeshes[i].VAO);
+        glDrawElements(GL_TRIANGLES, m_petMeshes[i].indices.size(), GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+        
+        m_shader->setBool("useTexture", false);
+    }
+    debugPrinted = true;
 }
 
 void Game::TogglePetSit()
@@ -2137,4 +2114,282 @@ void Game::RenderGUI(int windowWidth, int windowHeight)
     // Restore OpenGL state
     if (depthTestEnabled)
         glEnable(GL_DEPTH_TEST);
+}
+
+void Game::LoadModel(const std::string& path)
+{
+    // Extract directory from path
+    size_t lastSlash = path.find_last_of("/\\");
+    if (lastSlash != std::string::npos)
+    {
+        m_modelDirectory = path.substr(0, lastSlash + 1);
+    }
+    
+    std::cout << "Loading model from: " << path << std::endl;
+    std::cout << "Texture directory: " << m_modelDirectory << std::endl;
+    
+    Assimp::Importer importer;
+    const aiScene* scene = importer.ReadFile(path, 
+        aiProcess_Triangulate | 
+        aiProcess_FlipUVs |
+        aiProcess_GenNormals |
+        aiProcess_JoinIdenticalVertices);
+    
+    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
+    {
+        std::cout << "ERROR: Assimp - " << importer.GetErrorString() << std::endl;
+        return;
+    }
+    
+    std::cout << "Model has " << scene->mNumMaterials << " materials" << std::endl;
+    
+    ProcessNode(scene->mRootNode, scene);
+}
+
+void Game::ProcessNode(void* node, const void* scene)
+{
+    aiNode* ainode = static_cast<aiNode*>(node);
+    const aiScene* aiscene = static_cast<const aiScene*>(scene);
+    
+    // Process all meshes in this node
+    for (unsigned int i = 0; i < ainode->mNumMeshes; i++)
+    {
+        aiMesh* mesh = aiscene->mMeshes[ainode->mMeshes[i]];
+        m_petMeshes.push_back(ProcessMesh(mesh, aiscene));
+    }
+    
+    // Recursively process child nodes
+    for (unsigned int i = 0; i < ainode->mNumChildren; i++)
+    {
+        ProcessNode(ainode->mChildren[i], aiscene);
+    }
+}
+
+Mesh Game::ProcessMesh(void* mesh, const void* scene)
+{
+    aiMesh* aimesh = static_cast<aiMesh*>(mesh);
+    const aiScene* aiscene = static_cast<const aiScene*>(scene);
+    
+    std::vector<Vertex> vertices;
+    std::vector<unsigned int> indices;
+    
+    // Get material color if available
+    glm::vec3 meshColor = glm::vec3(0.8f, 0.6f, 0.4f); // Default tan/brown color
+    if (aimesh->mMaterialIndex >= 0)
+    {
+        aiMaterial* material = aiscene->mMaterials[aimesh->mMaterialIndex];
+        aiColor3D color(1.0f, 1.0f, 1.0f);
+        if (material->Get(AI_MATKEY_COLOR_DIFFUSE, color) == AI_SUCCESS)
+        {
+            meshColor = glm::vec3(color.r, color.g, color.b);
+        }
+    }
+    
+    // Process vertices
+    for (unsigned int i = 0; i < aimesh->mNumVertices; i++)
+    {
+        Vertex vertex;
+        
+        // Position
+        vertex.Position.x = aimesh->mVertices[i].x;
+        vertex.Position.y = aimesh->mVertices[i].y;
+        vertex.Position.z = aimesh->mVertices[i].z;
+        
+        // Normals
+        if (aimesh->HasNormals())
+        {
+            vertex.Normal.x = aimesh->mNormals[i].x;
+            vertex.Normal.y = aimesh->mNormals[i].y;
+            vertex.Normal.z = aimesh->mNormals[i].z;
+        }
+        else
+        {
+            vertex.Normal = glm::vec3(0.0f, 1.0f, 0.0f);
+        }
+        
+        // Use vertex colors if available, otherwise use material color
+        if (aimesh->HasVertexColors(0))
+        {
+            vertex.Color.r = aimesh->mColors[0][i].r;
+            vertex.Color.g = aimesh->mColors[0][i].g;
+            vertex.Color.b = aimesh->mColors[0][i].b;
+        }
+        else
+        {
+            vertex.Color = meshColor;
+        }
+        
+        // Texture coordinates
+        if (aimesh->mTextureCoords[0])
+        {
+            vertex.TexCoords.x = aimesh->mTextureCoords[0][i].x;
+            vertex.TexCoords.y = aimesh->mTextureCoords[0][i].y;
+        }
+        else
+        {
+            vertex.TexCoords = glm::vec2(0.0f, 0.0f);
+        }
+        
+        vertices.push_back(vertex);
+    }
+    
+    // Process indices
+    for (unsigned int i = 0; i < aimesh->mNumFaces; i++)
+    {
+        aiFace face = aimesh->mFaces[i];
+        for (unsigned int j = 0; j < face.mNumIndices; j++)
+        {
+            indices.push_back(face.mIndices[j]);
+        }
+    }
+    
+    // Load texture if material has one
+    unsigned int textureID = 0;
+    if (aimesh->mMaterialIndex >= 0)
+    {
+        aiMaterial* material = aiscene->mMaterials[aimesh->mMaterialIndex];
+        
+        // Get material name
+        aiString matName;
+        material->Get(AI_MATKEY_NAME, matName);
+        std::string materialName = std::string(matName.C_Str());
+        
+        // Get mesh name
+        std::string meshName = std::string(aimesh->mName.C_Str());
+        
+        std::cout << "Mesh: '" << meshName << "' | Material: '" << materialName << "'" << std::endl;
+        std::cout << "Material has " << material->GetTextureCount(aiTextureType_DIFFUSE) << " diffuse textures" << std::endl;
+        
+        if (material->GetTextureCount(aiTextureType_DIFFUSE) > 0)
+        {
+            aiString texPath;
+            material->GetTexture(aiTextureType_DIFFUSE, 0, &texPath);
+            std::string texPathStr = std::string(texPath.C_Str());
+            std::cout << "Texture path from material: " << texPathStr << std::endl;
+            
+            // Handle different path formats
+            std::string fullPath;
+            if (texPathStr.find(":") != std::string::npos || texPathStr[0] == '/' || texPathStr[0] == '\\')
+            {
+                // Absolute path - try to extract just filename
+                size_t lastSlash = texPathStr.find_last_of("/\\");
+                if (lastSlash != std::string::npos)
+                {
+                    texPathStr = texPathStr.substr(lastSlash + 1);
+                }
+            }
+            
+            fullPath = m_modelDirectory + texPathStr;
+            std::cout << "Loading texture from: " << fullPath << std::endl;
+            textureID = LoadTexture(fullPath);
+        }
+        else
+        {
+            std::cout << "No diffuse texture in material, assigning by name..." << std::endl;
+            
+            // Assign textures based on material or mesh name
+            std::string searchName = materialName + " " + meshName;
+            // Convert to lowercase for comparison
+            std::transform(searchName.begin(), searchName.end(), searchName.begin(), ::tolower);
+            
+            std::string textureName;
+            if (searchName.find("eye") != std::string::npos)
+            {
+                textureName = "Tom_Eyes_Default.png";
+                std::cout << "Detected eyes mesh, using eye texture" << std::endl;
+            }
+            else if (searchName.find("body") != std::string::npos || 
+                     searchName.find("head") != std::string::npos ||
+                     searchName.find("tom") != std::string::npos)
+            {
+                textureName = "Tom_Body_Default.png";
+                std::cout << "Detected body mesh, using body texture" << std::endl;
+            }
+            else
+            {
+                // Default to body texture
+                textureName = "Tom_Body_Default.png";
+                std::cout << "Unknown mesh type, defaulting to body texture" << std::endl;
+            }
+            
+            std::string fullPath = m_modelDirectory + textureName;
+            textureID = LoadTexture(fullPath);
+        }
+    }
+    
+    Mesh resultMesh;
+    resultMesh.vertices = vertices;
+    resultMesh.indices = indices;
+    resultMesh.textureID = textureID;
+    resultMesh.SetupMesh();
+    
+    return resultMesh;
+}
+
+unsigned int Game::LoadTexture(const std::string& path)
+{
+    unsigned int textureID = 0;
+    
+    // Initialize GDI+
+    Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+    ULONG_PTR gdiplusToken;
+    Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+    
+    // Convert path to wide string
+    std::wstring wPath(path.begin(), path.end());
+    
+    // Load image using GDI+
+    Gdiplus::Bitmap* bitmap = new Gdiplus::Bitmap(wPath.c_str());
+    
+    Gdiplus::Status status = bitmap->GetLastStatus();
+    if (status != Gdiplus::Ok)
+    {
+        std::cout << "Failed to load texture: " << path << " (GDI+ Status: " << status << ")" << std::endl;
+        delete bitmap;
+        Gdiplus::GdiplusShutdown(gdiplusToken);
+        return 0;
+    }
+    
+    // Get image dimensions
+    UINT width = bitmap->GetWidth();
+    UINT height = bitmap->GetHeight();
+    
+    // Lock bitmap data
+    Gdiplus::BitmapData bitmapData;
+    Gdiplus::Rect rect(0, 0, width, height);
+    bitmap->LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat32bppARGB, &bitmapData);
+    
+    // Convert BGRA to RGBA
+    unsigned char* pixels = new unsigned char[width * height * 4];
+    unsigned char* src = (unsigned char*)bitmapData.Scan0;
+    
+    for (UINT i = 0; i < width * height; i++)
+    {
+        pixels[i * 4 + 0] = src[i * 4 + 2]; // R
+        pixels[i * 4 + 1] = src[i * 4 + 1]; // G
+        pixels[i * 4 + 2] = src[i * 4 + 0]; // B
+        pixels[i * 4 + 3] = src[i * 4 + 3]; // A
+    }
+    
+    // Create OpenGL texture
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    
+    // Cleanup
+    delete[] pixels;
+    bitmap->UnlockBits(&bitmapData);
+    delete bitmap;
+    Gdiplus::GdiplusShutdown(gdiplusToken);
+    
+    std::cout << "Loaded texture: " << path << " (" << width << "x" << height << ")" << std::endl;
+    
+    return textureID;
 }
