@@ -148,9 +148,11 @@ public:
         // Convert to 0-1 range
         float value = (float)(hash & 0x7FFFFFFF) / (float)0x7FFFFFFF;
         
-        // Threshold: favors grassland over desert (70% grassland, 30% desert)
-        if (value > 0.3f)
+        // Distribute biomes: 50% grassland, 30% birch, 20% desert
+        if (value < 0.5f)
             return BiomeType::GRASSLAND;
+        else if (value < 0.8f)
+            return BiomeType::BIRCH;
         else
             return BiomeType::DESERT;
     }
@@ -226,7 +228,12 @@ public:
         // Pure biome if more than BLEND_DISTANCE blocks from boundary
         if (distToBoundary > BLEND_DISTANCE)
         {
-            return (currentBiome == BiomeType::GRASSLAND) ? BlockType::GRASS : BlockType::DESERT_SAND;
+            if (currentBiome == BiomeType::BIRCH)
+                return BlockType::BIRCH_GRASS;
+            else if (currentBiome == BiomeType::GRASSLAND)
+                return BlockType::GRASS;
+            else
+                return BlockType::DESERT_SAND;
         }
         
         // Calculate blend factor: 0 at boundary, 1 at BLEND_DISTANCE
@@ -245,23 +252,30 @@ public:
         // Far from boundary (blendFactor = 1): pure current biome
         float threshold = combinedNoise * (1.0f - blendFactor);
         
-        // Determine which biome's block to use
-        if (currentBiome == BiomeType::GRASSLAND)
-        {
-            // In grassland, gradually introduce more grass as we move away from desert
-            if (threshold < -blendFactor)
-                return BlockType::DESERT_SAND;
-            else
-                return BlockType::GRASS;
-        }
+        // Determine which biome's block to use based on current and neighbor biomes
+        BlockType currentBlock, neighborBlock;
+        
+        // Get block type for current biome
+        if (currentBiome == BiomeType::BIRCH)
+            currentBlock = BlockType::BIRCH_GRASS;
+        else if (currentBiome == BiomeType::GRASSLAND)
+            currentBlock = BlockType::GRASS;
         else
-        {
-            // In desert, gradually introduce more sand as we move away from grassland
-            if (threshold > blendFactor)
-                return BlockType::GRASS;
-            else
-                return BlockType::DESERT_SAND;
-        }
+            currentBlock = BlockType::DESERT_SAND;
+        
+        // Get block type for neighbor biome
+        if (neighborBiome == BiomeType::BIRCH)
+            neighborBlock = BlockType::BIRCH_GRASS;
+        else if (neighborBiome == BiomeType::GRASSLAND)
+            neighborBlock = BlockType::GRASS;
+        else
+            neighborBlock = BlockType::DESERT_SAND;
+        
+        // Blend between current and neighbor biomes
+        if (threshold < -blendFactor)
+            return neighborBlock;
+        else
+            return currentBlock;
     }
 
     // Get the noise value at a position (for debugging)
@@ -324,6 +338,50 @@ public:
         outAngle = closestAngle;
     }
 
+    // Find the closest biome of a specific type
+    static void FindClosestBiomeOfType(float worldX, float worldZ, BiomeType targetBiome, float& outX, float& outZ, float& outDistance)
+    {
+        float closestDistance = 99999.0f;
+        float closestX = worldX;
+        float closestZ = worldZ;
+        
+        // Search in expanding radius
+        int maxSearchRadius = 2000; // Search up to 2000 blocks away
+        int step = 10; // Check every 10 blocks
+        
+        for (int radius = step; radius < maxSearchRadius; radius += step)
+        {
+            // Check 16 directions around the current position
+            for (int angle = 0; angle < 360; angle += 22)
+            {
+                float radians = (float)angle * 3.14159f / 180.0f;
+                float checkX = worldX + cos(radians) * (float)radius;
+                float checkZ = worldZ + sin(radians) * (float)radius;
+                
+                BiomeType checkBiome = GetBiome(checkX, checkZ);
+                
+                if (checkBiome == targetBiome)
+                {
+                    float distance = sqrt((checkX - worldX) * (checkX - worldX) + (checkZ - worldZ) * (checkZ - worldZ));
+                    if (distance < closestDistance)
+                    {
+                        closestDistance = distance;
+                        closestX = checkX;
+                        closestZ = checkZ;
+                    }
+                }
+            }
+            
+            // If we found the target biome within a reasonable range, stop searching
+            if (closestDistance < (float)radius)
+                break;
+        }
+        
+        outX = closestX;
+        outZ = closestZ;
+        outDistance = closestDistance;
+    }
+
     // Get tree placement hash
     static int GetTreeHash(int x, int z)
     {
@@ -362,15 +420,18 @@ public:
     }
 
     // Place a tree at the given position
-    static void PlaceTree(Chunk* chunk, int localX, int groundY, int localZ)
+    static void PlaceTree(Chunk* chunk, int localX, int groundY, int localZ, BiomeType biome = BiomeType::GRASSLAND)
     {
+        // Determine wood type based on biome
+        BlockType woodType = (biome == BiomeType::BIRCH) ? BlockType::BIRCH_WOOD : BlockType::WOOD;
+        
         // Tree trunk - 7 blocks tall
         for (int y = 0; y < 7; y++)
         {
             int treeY = groundY + 1 + y;
             if (treeY < CHUNK_HEIGHT)
             {
-                chunk->SetBlock(localX, treeY, localZ, BlockType::WOOD);
+                chunk->SetBlock(localX, treeY, localZ, woodType);
             }
         }
 
@@ -491,9 +552,9 @@ public:
                     }
                     else if (y >= terrainHeight - 5)
                     {
-                        // 4 blocks under surface - use dirt for grass, sand for desert
+                        // 4 blocks under surface - use dirt for grass/birch grass, sand for desert
                         // In transition zones, match the surface block
-                        if (surfaceBlockType == BlockType::GRASS)
+                        if (surfaceBlockType == BlockType::GRASS || surfaceBlockType == BlockType::BIRCH_GRASS)
                             blockType = BlockType::DIRT;
                         else
                             blockType = BlockType::DESERT_SAND;
@@ -518,9 +579,9 @@ public:
                 float worldX = chunk->position.x + x;
                 float worldZ = chunk->position.z + z;
 
-                // Check if this is a grassland biome
+                // Check if this is a grassland or birch biome (both have trees)
                 BiomeType biome = GetBiome(worldX, worldZ);
-                if (biome != BiomeType::GRASSLAND)
+                if (biome != BiomeType::GRASSLAND && biome != BiomeType::BIRCH)
                     continue;
 
                 // Check if a tree should spawn here
@@ -540,7 +601,7 @@ public:
                 int groundY = -1;
                 for (int y = CHUNK_HEIGHT - 1; y >= 0; y--)
                 {
-                    if (chunk->blocks[x][y][z].type == BlockType::GRASS)
+                    if (chunk->blocks[x][y][z].type == BlockType::GRASS || chunk->blocks[x][y][z].type == BlockType::BIRCH_GRASS)
                     {
                         groundY = y;
                         break;
@@ -550,7 +611,7 @@ public:
                 // Place tree if ground was found and there's room (9 blocks for trunk + top leaves)
                 if (groundY >= 0 && groundY + 9 < CHUNK_HEIGHT)
                 {
-                    PlaceTree(chunk, x, groundY, z);
+                    PlaceTree(chunk, x, groundY, z, biome);
                     treesPlaced++;
                 }
             }

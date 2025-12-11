@@ -43,9 +43,9 @@ Game::Game()
     m_hotbarItems[3] = BlockType::STONE;
     m_hotbarItems[4] = BlockType::WOOD;
     m_hotbarItems[5] = BlockType::LEAVES;
-    m_hotbarItems[6] = BlockType::DESERT_SAND;
-    m_hotbarItems[7] = BlockType::BEDROCK;
-    m_hotbarItems[8] = BlockType::GRASS;  // Extra slot
+    m_hotbarItems[6] = BlockType::BIRCH_WOOD;
+    m_hotbarItems[7] = BlockType::BIRCH_GRASS;
+    m_hotbarItems[8] = BlockType::DESERT_SAND;  // Extra slot
 }
 
 Game::~Game()
@@ -144,6 +144,9 @@ bool Game::Initialize()
     InitializePet();
     std::cout << "Pet initialized" << std::endl;
     
+    // Initialize mobs
+    InitializeMobs();
+    
     // Initialize GUI
     InitializeGUI();
     std::cout << "GUI initialized" << std::endl;
@@ -167,6 +170,82 @@ void Game::ProcessInput(GLFWwindow* window, float deltaTime)
         ToggleGUI(window);
     }
     gKeyWasPressed = gKeyPressed;
+    
+    // Find nearest Birch biome with B key
+    static bool bKeyWasPressed = false;
+    bool bKeyPressed = (glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS);
+    if (bKeyPressed && !bKeyWasPressed)
+    {
+        float playerX = m_camera->Position.x;
+        float playerZ = m_camera->Position.z;
+        float foundX, foundZ, distance;
+        TerrainGenerator::FindClosestBiomeOfType(playerX, playerZ, BiomeType::BIRCH, foundX, foundZ, distance);
+        std::cout << "\n=== Nearest BIRCH Biome ===" << std::endl;
+        std::cout << "Coordinates: (" << (int)foundX << ", " << (int)foundZ << ")" << std::endl;
+        std::cout << "Distance: " << (int)distance << " blocks" << std::endl;
+        std::cout << "========================\n" << std::endl;
+    }
+    bKeyWasPressed = bKeyPressed;
+    
+    // Find nearest Desert biome with N key
+    static bool nKeyWasPressed = false;
+    bool nKeyPressed = (glfwGetKey(window, GLFW_KEY_N) == GLFW_PRESS);
+    if (nKeyPressed && !nKeyWasPressed)
+    {
+        float playerX = m_camera->Position.x;
+        float playerZ = m_camera->Position.z;
+        float foundX, foundZ, distance;
+        TerrainGenerator::FindClosestBiomeOfType(playerX, playerZ, BiomeType::DESERT, foundX, foundZ, distance);
+        std::cout << "\n=== Nearest DESERT Biome ===" << std::endl;
+        std::cout << "Coordinates: (" << (int)foundX << ", " << (int)foundZ << ")" << std::endl;
+        std::cout << "Distance: " << (int)distance << " blocks" << std::endl;
+        std::cout << "========================\n" << std::endl;
+    }
+    nKeyWasPressed = nKeyPressed;
+    
+    // Spawn Ben mob near player with M key
+    static bool mKeyWasPressed = false;
+    bool mKeyPressed = (glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS);
+    if (mKeyPressed && !mKeyWasPressed)
+    {
+        // Find a valid spawn position near the player
+        glm::vec3 spawnPos = m_camera->Position + m_camera->Front * 5.0f;
+        
+        // Find ground height
+        float groundY = spawnPos.y;
+        for (int y = (int)spawnPos.y + 10; y > (int)spawnPos.y - 10; y--)
+        {
+            if (m_chunkManager->IsSolid(spawnPos.x, (float)y, spawnPos.z))
+            {
+                groundY = (float)y + 1.0f;
+                break;
+            }
+        }
+        
+        spawnPos.y = groundY;
+        
+        // Check if we have an existing Ben mesh template
+        if (!m_mobs.empty())
+        {
+            Mob newMob;
+            newMob.position = spawnPos;
+            newMob.spawnLocation = spawnPos;
+            newMob.velocity = glm::vec3(0.0f);
+            newMob.rotationY = (rand() % 360) * 3.14159f / 180.0f;
+            newMob.wanderTimer = 0.0f;
+            newMob.wanderTarget = spawnPos;
+            newMob.isActive = true;
+            newMob.meshes = m_mobs[0].meshes; // Copy meshes from first mob
+            m_mobs.push_back(newMob);
+            
+            std::cout << "Spawned Ben mob at (" << (int)spawnPos.x << ", " << (int)spawnPos.y << ", " << (int)spawnPos.z << ")" << std::endl;
+        }
+        else
+        {
+            std::cout << "No Ben template available - mobs not initialized yet" << std::endl;
+        }
+    }
+    mKeyWasPressed = mKeyPressed;
     
     // Handle GUI interactions when GUI is open
     if (m_showGUI)
@@ -365,6 +444,9 @@ void Game::Update(float deltaTime)
     
     // Update pet
     UpdatePet(deltaTime);
+    
+    // Update mobs
+    UpdateMobs(deltaTime);
 }
 
 void Game::Render(GLFWwindow* window)
@@ -450,6 +532,9 @@ void Game::Render(GLFWwindow* window)
     
     // Render pet
     RenderPet();
+    
+    // Render mobs
+    RenderMobs();
     
     // Render hand (last so it's always on top)
     RenderHand();
@@ -2287,33 +2372,76 @@ Mesh Game::ProcessMesh(void* mesh, const void* scene)
         {
             std::cout << "No diffuse texture in material, assigning by name..." << std::endl;
             
-            // Assign textures based on material or mesh name
-            std::string searchName = materialName + " " + meshName;
-            // Convert to lowercase for comparison
-            std::transform(searchName.begin(), searchName.end(), searchName.begin(), ::tolower);
+            // Check if loading Ben model
+            bool isBenModel = (m_modelDirectory.find("Ben") != std::string::npos);
             
-            std::string textureName;
-            if (searchName.find("eye") != std::string::npos)
+            if (isBenModel)
             {
-                textureName = "Tom_Eyes_Default.png";
-                std::cout << "Detected eyes mesh, using eye texture" << std::endl;
-            }
-            else if (searchName.find("body") != std::string::npos || 
-                     searchName.find("head") != std::string::npos ||
-                     searchName.find("tom") != std::string::npos)
-            {
-                textureName = "Tom_Body_Default.png";
-                std::cout << "Detected body mesh, using body texture" << std::endl;
+                // For Ben model, assign textures based on mesh/material name
+                std::string searchName = materialName + " " + meshName;
+                std::transform(searchName.begin(), searchName.end(), searchName.begin(), ::tolower);
+                
+                std::string textureName;
+                // Cylinder0041 = eyes, Cylinder0071 = front/face side, Cylinder0121 = back side
+                if (searchName.find("0041") != std::string::npos || 
+                    searchName.find("eye") != std::string::npos)
+                {
+                    textureName = "Cylinder0041_diff.png";
+                    std::cout << "Detected eyes mesh, using Cylinder0041 texture" << std::endl;
+                }
+                else if (searchName.find("0121") != std::string::npos || 
+                    searchName.find("back") != std::string::npos)
+                {
+                    textureName = "Cylinder0121_diff.png";
+                    std::cout << "Detected back mesh, using Cylinder0121 texture" << std::endl;
+                }
+                else if (searchName.find("0071") != std::string::npos || 
+                         searchName.find("front") != std::string::npos ||
+                         searchName.find("face") != std::string::npos)
+                {
+                    textureName = "Cylinder0071_diff.png";
+                    std::cout << "Detected front mesh, using Cylinder0071 texture" << std::endl;
+                }
+                else
+                {
+                    // Default to front texture
+                    textureName = "Cylinder0071_diff.png";
+                    std::cout << "Unknown Ben mesh ('" << meshName << "', '" << materialName << "'), defaulting to Cylinder0071" << std::endl;
+                }
+                
+                std::string fullPath = m_modelDirectory + textureName;
+                textureID = LoadTexture(fullPath);
             }
             else
             {
-                // Default to body texture
-                textureName = "Tom_Body_Default.png";
-                std::cout << "Unknown mesh type, defaulting to body texture" << std::endl;
+                // Assign textures based on material or mesh name for Tom
+                std::string searchName = materialName + " " + meshName;
+                // Convert to lowercase for comparison
+                std::transform(searchName.begin(), searchName.end(), searchName.begin(), ::tolower);
+                
+                std::string textureName;
+                if (searchName.find("eye") != std::string::npos)
+                {
+                    textureName = "Tom_Eyes_Default.png";
+                    std::cout << "Detected eyes mesh, using eye texture" << std::endl;
+                }
+                else if (searchName.find("body") != std::string::npos || 
+                         searchName.find("head") != std::string::npos ||
+                         searchName.find("tom") != std::string::npos)
+                {
+                    textureName = "Tom_Body_Default.png";
+                    std::cout << "Detected body mesh, using body texture" << std::endl;
+                }
+                else
+                {
+                    // Default to body texture
+                    textureName = "Tom_Body_Default.png";
+                    std::cout << "Unknown mesh type, defaulting to body texture" << std::endl;
+                }
+                
+                std::string fullPath = m_modelDirectory + textureName;
+                textureID = LoadTexture(fullPath);
             }
-            
-            std::string fullPath = m_modelDirectory + textureName;
-            textureID = LoadTexture(fullPath);
         }
     }
     
@@ -2392,4 +2520,363 @@ unsigned int Game::LoadTexture(const std::string& path)
     std::cout << "Loaded texture: " << path << " (" << width << "x" << height << ")" << std::endl;
     
     return textureID;
+}
+
+void Game::GenerateMobSpawnLocations()
+{
+    // Generate spawn locations in a grid with 100 block spacing
+    const int SPAWN_SPACING = 100;
+    const int SPAWN_RADIUS = 500; // Generate spawns within 500 blocks of origin
+    
+    for (int x = -SPAWN_RADIUS; x <= SPAWN_RADIUS; x += SPAWN_SPACING)
+    {
+        for (int z = -SPAWN_RADIUS; z <= SPAWN_RADIUS; z += SPAWN_SPACING)
+        {
+            // Add some random offset so they're not perfectly aligned
+            float offsetX = ((rand() % 20) - 10) * 1.0f;
+            float offsetZ = ((rand() % 20) - 10) * 1.0f;
+            
+            glm::vec3 spawnPos(x + offsetX, 50.0f, z + offsetZ); // Y will be adjusted to ground
+            m_mobSpawnLocations.push_back(spawnPos);
+        }
+    }
+    
+    std::cout << "Generated " << m_mobSpawnLocations.size() << " mob spawn locations" << std::endl;
+}
+
+bool Game::IsMobSpawnValid(const glm::vec3& position)
+{
+    // Check if too close to player
+    float distToPlayer = glm::length(position - m_camera->Position);
+    if (distToPlayer < 20.0f)
+        return false;
+    
+    // Check if position is on solid ground
+    if (!m_chunkManager->IsSolid(position.x, position.y - 1.0f, position.z))
+        return false;
+    
+    // Check if there's space above (2 blocks high)
+    if (m_chunkManager->IsSolid(position.x, position.y + 1.0f, position.z) ||
+        m_chunkManager->IsSolid(position.x, position.y + 2.0f, position.z))
+        return false;
+    
+    return true;
+}
+
+void Game::InitializeMobs()
+{
+    std::cout << "Initializing mob system..." << std::endl;
+    
+    // Generate spawn locations
+    GenerateMobSpawnLocations();
+    
+    // Create mob template by loading Ben model
+    std::vector<Mesh> benMeshes;
+    std::string oldModelDir = m_modelDirectory;
+    
+    Assimp::Importer importer;
+    const aiScene* scene = importer.ReadFile("resources/models/Ben/talking ben.obj", 
+        aiProcess_Triangulate | 
+        aiProcess_FlipUVs |
+        aiProcess_GenNormals |
+        aiProcess_JoinIdenticalVertices);
+    
+    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
+    {
+        std::cout << "ERROR: Failed to load Ben model - " << importer.GetErrorString() << std::endl;
+        return;
+    }
+    
+    m_modelDirectory = "resources/models/Ben/";
+    
+    // Process all meshes
+    std::function<void(aiNode*, const aiScene*)> processNode = [&](aiNode* node, const aiScene* scene) {
+        for (unsigned int i = 0; i < node->mNumMeshes; i++)
+        {
+            aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
+            benMeshes.push_back(ProcessMesh(mesh, scene));
+        }
+        for (unsigned int i = 0; i < node->mNumChildren; i++)
+        {
+            processNode(node->mChildren[i], scene);
+        }
+    };
+    
+    processNode(scene->mRootNode, scene);
+    m_modelDirectory = oldModelDir;
+    
+    std::cout << "Ben model loaded with " << benMeshes.size() << " meshes" << std::endl;
+    
+    // Spawn mobs at valid locations within render distance
+    for (const auto& spawnLoc : m_mobSpawnLocations)
+    {
+        // Check if within reasonable distance of spawn
+        float distToOrigin = glm::length(spawnLoc);
+        if (distToOrigin > 300.0f)
+            continue;
+        
+        // Find ground height
+        float groundY = 50.0f;
+        for (int y = 100; y > 0; y--)
+        {
+            if (m_chunkManager->IsSolid(spawnLoc.x, (float)y, spawnLoc.z))
+            {
+                groundY = (float)y + 1.0f;
+                break;
+            }
+        }
+        
+        glm::vec3 mobPos(spawnLoc.x, groundY, spawnLoc.z);
+        
+        // Validate spawn location
+        if (IsMobSpawnValid(mobPos))
+        {
+            Mob newMob;
+            newMob.position = mobPos;
+            newMob.spawnLocation = mobPos;
+            newMob.velocity = glm::vec3(0.0f);
+            newMob.rotationY = (rand() % 360) * 3.14159f / 180.0f;
+            newMob.wanderTimer = 0.0f;
+            newMob.wanderTarget = mobPos;
+            newMob.isActive = true;
+            newMob.meshes = benMeshes;
+            m_mobs.push_back(newMob);
+        }
+    }
+    
+    std::cout << "Spawned " << m_mobs.size() << " Ben mobs" << std::endl;
+}
+
+void Game::UpdateMobs(float deltaTime)
+{
+    for (auto& mob : m_mobs)
+    {
+        if (!mob.isActive)
+            continue;
+        
+        // Apply gravity
+        const float GRAVITY = -20.0f;
+        mob.velocity.y += GRAVITY * deltaTime;
+        
+        // Calculate next position
+        float nextY = mob.position.y + mob.velocity.y * deltaTime;
+        
+        // Check if would collide with ground at next position (checking at foot level)
+        if (m_chunkManager->IsSolid(mob.position.x, nextY, mob.position.z))
+        {
+            // Find ground level (highest solid block below mob)
+            for (int checkY = (int)mob.position.y; checkY > (int)mob.position.y - 5; checkY--)
+            {
+                if (m_chunkManager->IsSolid(mob.position.x, (float)checkY, mob.position.z))
+                {
+                    // Position mob standing on top of this block
+                    mob.position.y = (float)checkY + 1.0f;
+                    mob.velocity.y = 0.0f;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            // No collision, apply the movement
+            mob.position.y = nextY;
+        }
+        
+        // Wandering behavior
+        mob.wanderTimer -= deltaTime;
+        
+        if (mob.wanderTimer <= 0.0f)
+        {
+            // Pick a new random target within 10 blocks of spawn
+            float offsetX = ((rand() % 200) - 100) * 0.1f; // -10 to +10
+            float offsetZ = ((rand() % 200) - 100) * 0.1f;
+            mob.wanderTarget = mob.spawnLocation + glm::vec3(offsetX, 0.0f, offsetZ);
+            mob.wanderTimer = 3.0f + (rand() % 50) * 0.1f; // 3-8 seconds
+        }
+        
+        // Move towards wander target
+        glm::vec3 toTarget = mob.wanderTarget - mob.position;
+        toTarget.y = 0.0f; // Only move horizontally
+        float distToTarget = glm::length(toTarget);
+        
+        if (distToTarget > 0.5f)
+        {
+            glm::vec3 moveDir = glm::normalize(toTarget);
+            float moveSpeed = 1.5f; // blocks per second
+            
+            // Calculate next horizontal position
+            glm::vec3 nextPos = mob.position + moveDir * moveSpeed * deltaTime;
+            
+            // Check if movement is blocked by solid blocks at current height
+            bool blockedAtCurrentHeight = m_chunkManager->IsSolid(nextPos.x, mob.position.y, nextPos.z) ||
+                                         m_chunkManager->IsSolid(nextPos.x, mob.position.y + 1.0f, nextPos.z);
+            
+            if (!blockedAtCurrentHeight)
+            {
+                // Path is clear, move normally
+                mob.position.x = nextPos.x;
+                mob.position.z = nextPos.z;
+                
+                // Face movement direction (flip rotation 180 degrees)
+                mob.rotationY = atan2(moveDir.x, moveDir.z) + 3.14159f;
+            }
+            else
+            {
+                // Check if we can step up one block
+                bool canStepUp = !m_chunkManager->IsSolid(nextPos.x, mob.position.y + 1.0f, nextPos.z) &&
+                                !m_chunkManager->IsSolid(nextPos.x, mob.position.y + 2.0f, nextPos.z) &&
+                                m_chunkManager->IsSolid(nextPos.x, mob.position.y, nextPos.z);
+                
+                if (canStepUp)
+                {
+                    // Step up one block
+                    mob.position.x = nextPos.x;
+                    mob.position.z = nextPos.z;
+                    mob.position.y += 1.0f;
+                    
+                    // Face movement direction
+                    mob.rotationY = atan2(moveDir.x, moveDir.z) + 3.14159f;
+                }
+                else
+                {
+                    // Can't move forward or step up, pick new target
+                    mob.wanderTimer = 0.0f;
+                }
+            }
+        }
+        
+        // Despawn if too far from player
+        float distToPlayer = glm::length(mob.position - m_camera->Position);
+        if (distToPlayer > 600.0f)
+        {
+            mob.isActive = false;
+        }
+    }
+    
+    // Spawn new mobs near player if needed
+    static float spawnTimer = 0.0f;
+    spawnTimer += deltaTime;
+    
+    if (spawnTimer > 5.0f) // Check every 5 seconds
+    {
+        spawnTimer = 0.0f;
+        
+        // Count active mobs near player
+        int nearbyMobs = 0;
+        for (const auto& mob : m_mobs)
+        {
+            if (mob.isActive)
+            {
+                float dist = glm::length(mob.position - m_camera->Position);
+                if (dist < 200.0f)
+                    nearbyMobs++;
+            }
+        }
+        
+        // Try to spawn more if there are few nearby
+        if (nearbyMobs < 10)
+        {
+            for (const auto& spawnLoc : m_mobSpawnLocations)
+            {
+                float distToPlayer = glm::length(spawnLoc - m_camera->Position);
+                if (distToPlayer > 50.0f && distToPlayer < 200.0f)
+                {
+                    // Find ground height
+                    float groundY = 50.0f;
+                    for (int y = 100; y > 0; y--)
+                    {
+                        if (m_chunkManager->IsSolid(spawnLoc.x, (float)y, spawnLoc.z))
+                        {
+                            groundY = (float)y + 1.0f;
+                            break;
+                        }
+                    }
+                    
+                    glm::vec3 mobPos(spawnLoc.x, groundY, spawnLoc.z);
+                    
+                    if (IsMobSpawnValid(mobPos))
+                    {
+                        // Check if a mob already exists at this location
+                        bool locationOccupied = false;
+                        for (const auto& existingMob : m_mobs)
+                        {
+                            if (existingMob.isActive && glm::length(existingMob.position - mobPos) < 5.0f)
+                            {
+                                locationOccupied = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!locationOccupied)
+                        {
+                            // Find an inactive mob slot or create new
+                            bool spawned = false;
+                            for (auto& mob : m_mobs)
+                            {
+                                if (!mob.isActive)
+                                {
+                                    mob.position = mobPos;
+                                    mob.spawnLocation = mobPos;
+                                    mob.velocity = glm::vec3(0.0f);
+                                    mob.rotationY = (rand() % 360) * 3.14159f / 180.0f;
+                                    mob.wanderTimer = 0.0f;
+                                    mob.wanderTarget = mobPos;
+                                    mob.isActive = true;
+                                    spawned = true;
+                                    break;
+                                }
+                            }
+                            
+                            if (spawned)
+                                break; // Only spawn one per check
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void Game::RenderMobs()
+{
+    for (const auto& mob : m_mobs)
+    {
+        if (!mob.isActive)
+            continue;
+        
+        // Don't render if too far from player
+        float distToPlayer = glm::length(mob.position - m_camera->Position);
+        if (distToPlayer > 200.0f)
+            continue;
+        
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, mob.position + glm::vec3(0.0f, 0.4f, 0.0f)); // Raise model slightly
+        model = glm::rotate(model, mob.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(0.35f)); // Ben model scale
+        
+        m_shader->setMat4("model", glm::value_ptr(model));
+        
+        // Render all meshes
+        for (size_t i = 0; i < mob.meshes.size(); i++)
+        {
+            // Bind texture if available
+            if (mob.meshes[i].textureID != 0)
+            {
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, mob.meshes[i].textureID);
+                m_shader->setInt("diffuseTexture", 1);
+                m_shader->setBool("useTexture", true);
+            }
+            else
+            {
+                m_shader->setBool("useTexture", false);
+            }
+            
+            glBindVertexArray(mob.meshes[i].VAO);
+            glDrawElements(GL_TRIANGLES, mob.meshes[i].indices.size(), GL_UNSIGNED_INT, 0);
+            glBindVertexArray(0);
+            
+            m_shader->setBool("useTexture", false);
+        }
+    }
 }

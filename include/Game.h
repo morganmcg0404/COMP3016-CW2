@@ -170,6 +170,25 @@ private:
     unsigned int LoadTexture(const std::string& path);
     std::string m_modelDirectory;
     
+    // Mob system
+    struct Mob {
+        glm::vec3 position;
+        glm::vec3 velocity;
+        glm::vec3 spawnLocation;
+        float rotationY;
+        float wanderTimer;
+        glm::vec3 wanderTarget;
+        bool isActive;
+        std::vector<Mesh> meshes;
+    };
+    std::vector<Mob> m_mobs;
+    std::vector<glm::vec3> m_mobSpawnLocations;
+    void InitializeMobs();
+    void UpdateMobs(float deltaTime);
+    void RenderMobs();
+    void GenerateMobSpawnLocations();
+    bool IsMobSpawnValid(const glm::vec3& position);
+    
     // GUI System
     bool m_showGUI;
     unsigned int m_guiVAO, m_guiVBO;

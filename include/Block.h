@@ -6,7 +6,8 @@
 enum class BiomeType
 {
     GRASSLAND,  // Green biome
-    DESERT      // Brown biome
+    DESERT,     // Brown biome
+    BIRCH       // Birch forest biome
 };
 
 // Block types
@@ -19,7 +20,9 @@ enum class BlockType
     STONE,
     WOOD,
     LEAVES,
-    BEDROCK
+    BEDROCK,
+    BIRCH_WOOD,
+    BIRCH_GRASS
 };
 
 // Block structure
@@ -37,7 +40,9 @@ struct Block
         switch (type)
         {
         case BlockType::GRASS:
-            return glm::vec3(0.2f, 0.8f, 0.2f);  // Green
+            return glm::vec3(0.15f, 0.6f, 0.15f);  // Darker green
+        case BlockType::BIRCH_GRASS:
+            return glm::vec3(0.5f, 0.85f, 0.5f);  // Lighter green
         case BlockType::DESERT_SAND:
             return glm::vec3(0.76f, 0.60f, 0.42f);  // Sandy brown
         case BlockType::DIRT:
@@ -46,6 +51,8 @@ struct Block
             return glm::vec3(0.5f, 0.5f, 0.5f);  // Grey
         case BlockType::WOOD:
             return glm::vec3(0.4f, 0.2f, 0.1f);  // Dark brown
+        case BlockType::BIRCH_WOOD:
+            return glm::vec3(0.9f, 0.9f, 0.85f);  // White/cream (birch)
         case BlockType::LEAVES:
             return glm::vec3(0.1f, 0.8f, 0.1f);  // Bright green
         case BlockType::BEDROCK:
