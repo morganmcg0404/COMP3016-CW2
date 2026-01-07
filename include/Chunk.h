@@ -4,6 +4,7 @@
 #include <glm/glm.hpp>
 #include <vector>
 #include "Block.h"
+#include "TextureGenerator.h"
 
 const int CHUNK_SIZE = 16;
 const int CHUNK_HEIGHT = 64;
@@ -197,21 +198,31 @@ private:
             }
         };
 
-        // Add vertices
+        // Add vertices with per-vertex noise variation
         for (int i = 0; i < 4; i++)
         {
+            glm::vec3 vertexLocalPos = glm::vec3(
+                cubeVertices[faceIndex][i][0],
+                cubeVertices[faceIndex][i][1],
+                cubeVertices[faceIndex][i][2]
+            );
+            glm::vec3 vertexWorldPos = pos + vertexLocalPos;
+            
+            // Get noise-varied color for this vertex based on block-local position
+            glm::vec3 variedColor = TextureGenerator::GetVertexColor(color, vertexLocalPos);
+            
             // Position
-            vertices.push_back(pos.x + cubeVertices[faceIndex][i][0]);
-            vertices.push_back(pos.y + cubeVertices[faceIndex][i][1]);
-            vertices.push_back(pos.z + cubeVertices[faceIndex][i][2]);
+            vertices.push_back(vertexWorldPos.x);
+            vertices.push_back(vertexWorldPos.y);
+            vertices.push_back(vertexWorldPos.z);
             // Normal
             vertices.push_back(cubeVertices[faceIndex][i][3]);
             vertices.push_back(cubeVertices[faceIndex][i][4]);
             vertices.push_back(cubeVertices[faceIndex][i][5]);
-            // Color
-            vertices.push_back(color.r);
-            vertices.push_back(color.g);
-            vertices.push_back(color.b);
+            // Color with noise variation
+            vertices.push_back(variedColor.r);
+            vertices.push_back(variedColor.g);
+            vertices.push_back(variedColor.b);
         }
 
         // Add indices (two triangles per face)

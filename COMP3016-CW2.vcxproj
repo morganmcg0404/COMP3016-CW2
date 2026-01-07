@@ -103,6 +103,7 @@ xcopy /y /d /s "$(SolutionDir)resources" "$(OutDir)resources\"</Command>
     <ClCompile Include="dependencies\GLAD\src\glad.c" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Game.cpp" />
+    <ClCompile Include="src\TextureGenerator.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Block.h" />
@@ -112,6 +113,7 @@ xcopy /y /d /s "$(SolutionDir)resources" "$(OutDir)resources\"</Command>
     <ClInclude Include="include\Game.h" />
     <ClInclude Include="include\Shader.h" />
     <ClInclude Include="include\TerrainGenerator.h" />
+    <ClInclude Include="include\TextureGenerator.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
