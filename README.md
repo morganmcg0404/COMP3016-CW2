@@ -1,481 +1,414 @@
 # COMP3016 CW2 - Voxel Terrain Engine
+**Morgan McGovern | University of Plymouth**
 
-A 3D voxel-based terrain generation engine built with OpenGL, featuring procedurally generated Minecraft-style terrain with chunk-based rendering, camera controls, and Perlin noise terrain generation. Built with GLFW, GLAD, Assimp, and GLM for Visual Studio 2022.
-
-## Features
-
-- **Voxel-Based Terrain**: Minecraft-style block-based world generation
-- **Chunk System**: Efficient chunk-based rendering with configurable render distance
-- **Procedural Generation**: Perlin noise-based terrain with multiple biomes and unique world seeds
-- **Camera System**: First-person camera with WASD movement, sprint, and crouch
-- **Advanced Lighting**: Phong lighting with dynamic day/night cycle and real-time shadows
-- **Shadow Mapping**: High-resolution shadow maps (8192x8192) with PCF filtering
-- **Block Interaction**: Raycast-based block destruction with 3-block reach
-- **Player Hand**: Animated first-person hand with bobbing and swing animations
-- **Crosshair**: Aspect-ratio corrected targeting reticle
-- **Biomes**: Grassland and desert biomes with smooth transitions
-- **Bedrock Layer**: Indestructible bottom layer at y=0
-- **Performance Optimized**: Face culling, chunk batching, and efficient memory management
-- **Modern OpenGL**: OpenGL 4.3 Core Profile with custom GLSL shaders
-
-## Project Structure
-
-```
-COMP3016-CW2/
-├── dependencies/          # External libraries
-│   ├── GLFW/             # Window and input management
-│   ├── GLAD/             # OpenGL function loader
-│   ├── Assimp/           # 3D model loading (for future use)
-│   └── GLM/              # Mathematics library (vectors, matrices)
-├── include/              # Header files
-│   ├── Game.h           # Main game class
-│   ├── Camera.h         # First-person camera implementation
-│   ├── Shader.h         # Shader program wrapper
-│   ├── Block.h          # Block type definitions
-│   ├── Chunk.h          # Chunk data structure (16x256x16 blocks)
-│   ├── ChunkManager.h   # Chunk loading/unloading system
-│   └── TerrainGenerator.h  # Perlin noise terrain generation
-├── src/                  # Source files
-│   ├── main.cpp         # Entry point, window setup, main loop
-│   └── Game.cpp         # Game logic, rendering, input handling
-├── resources/            # Game resources
-│   └── shaders/         # GLSL shaders
-│       ├── basic.vert   # Vertex shader (transforms, lighting prep, shadow coords)
-│       ├── basic.frag   # Fragment shader (Phong lighting, shadow calculation, PCF)
-│       ├── shadow.vert  # Shadow map vertex shader
-│       └── shadow.frag  # Shadow map fragment shader
-├── lib/                  # Additional library files
-└── bin/                  # Build output (generated)
-```
-
-## Dependencies Setup
-
-### 1. GLFW (Window and Input Management)
-- **Download:** https://www.glfw.org/download.html
-- **Version:** 3.3.8 or later (64-bit Windows binaries)
-- **Status:** ✅ Already installed
-- **Setup:**
-  1. Download the 64-bit Windows pre-compiled binaries
-  2. Extract to `dependencies/GLFW/`
-  3. Ensure the following structure:
-     ```
-     dependencies/GLFW/
-     ├── include/GLFW/
-     └── lib-vc2022/glfw3.lib
-     ```
-
-### 2. GLAD (OpenGL Loader)
-- **Download:** https://glad.dav1d.de/
-- **Configuration:**
-  - Language: C/C++
-  - Specification: OpenGL
-  - API gl: Version 4.3 (Core Profile)
-  - Generate a loader: ✓
-- **Status:** ✅ Already installed
-- **Setup:**
-  1. Download the generated files
-  2. Extract to `dependencies/GLAD/`
-  3. Ensure the following structure:
-     ```
-     dependencies/GLAD/
-     ├── include/
-     │   ├── glad/glad.h
-     │   └── KHR/khrplatform.h
-     └── src/glad.c
-     ```
-
-### 3. Assimp (Model Loading)
-- **Download:** https://github.com/assimp/assimp/releases
-- **Version:** 5.3.1 or later
-- **Status:** ✅ Already installed
-- **Note:** Currently included for future model loading features
-- **Setup:**
-  1. Download the pre-built libraries for Visual Studio 2022 (64-bit)
-  2. Extract to `dependencies/Assimp/`
-  3. Ensure the following structure:
-     ```
-     dependencies/Assimp/
-     ├── include/assimp/
-     ├── lib/x64/
-     │   └── assimp-vc143-mt.lib
-     └── bin/x64/
-         └── assimp-vc143-mt.dll
-     ```
-
-### 4. GLM (Mathematics Library - Header Only)
-- **Download:** https://github.com/g-truc/glm/releases
-- **Version:** 0.9.9.8 or later
-- **Status:** ✅ Already installed
-- **Setup:**
-  1. Download the source code
-  2. Extract to `dependencies/GLM/`
-  3. Ensure the following structure:
-     ```
-     dependencies/GLM/
-     └── glm/
-         ├── glm.hpp
-         ├── gtc/
-         ├── gtx/
-         └── (other headers)
-     ```
-
-## Building the Project
-
-### Prerequisites
-- **Visual Studio 2022** with C++ Desktop Development workload
-- **Windows 10/11** (64-bit)
-- All dependencies installed (see above)
-
-### Build Steps
-
-1. **Open the solution:**
-   - Open `COMP3016-CW2.sln` in Visual Studio 2022
-
-2. **Select configuration:**
-   - Choose `Debug` or `Release` configuration
-   - Ensure platform is set to `x64` (64-bit)
-
-3. **Build:**
-   - Press `F7` or go to `Build > Build Solution`
-   - The project should compile without errors
-
-4. **Run:**
-   - Press `F5` to run with debugging
-   - Or press `Ctrl+F5` to run without debugging
-
-### Expected Output
-- A 1280x720 window should open displaying the voxel terrain
-- You should see procedurally generated terrain with lighting
-- Camera should respond to mouse and keyboard input
-
-## Controls
-
-- **W/A/S/D**: Move camera forward/left/backward/right
-- **Left Shift**: Crouch (slower movement)
-- **Left Control**: Toggle sprint (faster movement)
-- **Space**: Jump
-- **Mouse Movement**: Look around (first-person view)
-- **Left Mouse Button**: Destroy block (3 block range)
-- **ESC**: Exit the application
-
-## Technical Details
-
-### Chunk System
-- Each chunk is **16x256x16** blocks
-- Chunks generate dynamically based on camera position
-- Configurable render distance (default: 20 chunks)
-- Efficient memory management with chunk loading/unloading
-
-### Terrain Generation
-- **Perlin noise** algorithm for natural-looking terrain
-- **Unique world seeds**: Different terrain each time you play (seed displayed in console)
-- Multiple noise octaves for varied terrain features
-- **Biome system**: Grassland (green grass) and Desert (sandy) biomes with smooth blending
-- Height-based block layers:
-  - **Bedrock** (y=0): Indestructible dark grey bottom layer
-  - **Stone** (y=1 to terrain-5): Deep underground layer
-  - **Dirt/Sand** (terrain-5 to terrain-1): Subsurface layer (biome-dependent)
-  - **Grass/Sand** (terrain surface): Top layer (biome-dependent)
-- **Tree generation**: Oak trees with logs and leaf blocks in grassland biomes
-- Seamless chunk boundaries
-
-### Rendering
-- **OpenGL 4.3 Core Profile**
-- Custom vertex and fragment shaders with separate shadow shaders
-- **Phong lighting model** with:
-  - Ambient lighting (30% strength)
-  - Diffuse lighting (directional from sun/moon)
-  - Specular highlights (20% strength, shininess: 16)
-- **Shadow mapping**:
-  - 8192x8192 resolution shadow maps for crisp shadows
-  - PCF (Percentage Closer Filtering) for smooth shadow edges
-  - Dynamic shadows from sun/moon position
-  - Minimal shadow bias to prevent peter-panning
-- **Day/Night cycle**: 
-  - 360-second full cycle (6 minutes)
-  - Dynamic sky color transitions
-  - Moving sun and moon with realistic lighting
-  - Stars visible at night
-- **Skybox**: Procedurally generated sky with celestial objects
-- **Player hand rendering**: Unlit hand model with bobbing and swing animations
-- **Crosshair**: Screen-space crosshair with aspect ratio correction
-- Block face culling for performance
-
-### Camera System
-- First-person perspective
-- Smooth mouse-based rotation with yaw and pitch
-- Movement modes:
-  - **Normal**: 15 units/sec
-  - **Sprint**: 30 units/sec (toggle with Ctrl)
-  - **Crouch**: 8 units/sec (hold Shift)
-- **Physics**: Gravity (20 units/sec²) and ground detection
-- **Collision detection**: Prevents walking through blocks
-- **Jump**: 12 units/sec vertical velocity
-- Proper view and projection matrices (perspective FOV: 60°)
-
-## Code Architecture
-
-### Core Classes
-
-**Game** (`Game.h`, `Game.cpp`)
-- Main game loop and state management
-- Input processing (keyboard and mouse)
-- Rendering coordination
-- Camera and shader management
-
-**Camera** (`Camera.h`)
-- First-person camera implementation
-- View matrix calculation
-- Mouse and keyboard input processing
-
-**Shader** (`Shader.h`)
-- GLSL shader program wrapper
-- Compile and link vertex/fragment shaders
-- Uniform variable management
-
-**Block** (`Block.h`)
-- Block type enumeration:
-  - Air, Grass, Desert Sand, Dirt, Stone, Wood, Leaves, Bedrock
-- Block color definitions (RGB values for each type)
-- Biome type enumeration (Grassland, Desert)
-- Block properties and state management
-
-**Chunk** (`Chunk.h`)
-- 16x256x16 block data structure
-- Mesh generation from block data
-- OpenGL VAO/VBO management
-
-**ChunkManager** (`ChunkManager.h`)
-- Manages multiple chunks
-- Chunk generation around camera
-- Chunk loading/unloading based on distance
-
-**TerrainGenerator** (`TerrainGenerator.h`)
-- Perlin noise implementation
-- Height map generation
-- Block type assignment based on height
-
-## Important Notes
-
-### Library Versions
-- Make sure all libraries are **64-bit (x64)** versions
-- Ensure libraries are built with compatible Visual Studio versions (VS2022/v143 toolset)
-- OpenGL 4.3+ support required (most modern GPUs support this)
-
-### Project Configuration
-The project is already configured with:
-- Include directories pointing to all dependency headers
-- Library directories for GLFW and Assimp
-- Proper linker settings for required `.lib` files
-- OpenGL libraries (opengl32.lib)
-
-### Common Issues
-
-**Link errors:** 
-- Verify all `.lib` files are in the correct directories
-- Check that library names in the project match the actual file names
-- Ensure you're building for x64 platform
-
-**DLL not found errors:**
-- Check if `assimp-vc143-mt.dll` is in the output directory
-- The post-build event should copy DLLs automatically
-- Manually copy from `dependencies/Assimp/bin/x64/` to `bin/Debug/` if needed
-
-**Include errors:**
-- Verify all include directories are correctly set in project properties
-- Check that header files exist in `dependencies/*/include/` paths
-- Rebuild the solution after modifying include paths
-
-**OpenGL errors:**
-- Ensure your graphics drivers are up to date
-- Verify OpenGL 4.3+ support on your GPU
-- Check that GLAD is properly initialized before OpenGL calls
-
-**Performance issues:**
-- Reduce render distance in `ChunkManager` initialization (Game.cpp)
-- Switch to Release configuration for better performance
-- Check GPU usage and driver updates
-
-### Additional Configuration
-
-If you need to modify include/library paths:
-1. Right-click the project in Solution Explorer
-2. Select `Properties`
-3. Modify paths under:
-   - `C/C++ > General > Additional Include Directories`
-   - `Linker > General > Additional Library Directories`
-   - `Linker > Input > Additional Dependencies`
-
-Current configuration includes:
-- **Include Directories:**
-  - `dependencies/GLFW/include`
-  - `dependencies/GLAD/include`
-  - `dependencies/Assimp/include`
-  - `dependencies/GLM`
-  
-- **Library Directories:**
-  - `dependencies/GLFW/lib-vc2022`
-  - `dependencies/Assimp/lib/x64`
-  
-- **Linked Libraries:**
-  - `glfw3.lib`
-  - `opengl32.lib`
-  - `assimp-vc143-mt.lib`
-
-## Future Enhancement Possibilities
-
-- **Textures**: Implement texture atlas for block textures instead of solid colors
-- **Block Placement**: Allow players to place blocks (right-click)
-- **Inventory**: Hotbar with different block types
-- **More Biomes**: Mountains, forests, oceans, snow biomes
-- **Water**: Add transparent water blocks with flow physics
-- **Cave Generation**: Implement cave systems using 3D noise
-- **Advanced Shadows**: Cascaded shadow maps for better long-distance shadows
-- **Multiplayer**: Network functionality for multiplayer support
-- **Audio**: Add ambient sounds, footsteps, and music (irrKlang integration)
-- **Particles**: Block break particles, weather effects
-- **Optimization**: Implement frustum culling and LOD system
-- **Mobs**: Add creatures and enemies
-- **Crafting**: Item crafting system
-
-## Development Workflow
-
-1. **Add new source files:**
-   - Add `.cpp` files to the `src/` directory
-   - Add `.h` files to the `include/` directory
-   - Right-click project in Solution Explorer > Add > Existing Item
-
-2. **Modify shaders:**
-   - Edit `resources/shaders/basic.vert` for vertex processing
-   - Edit `resources/shaders/basic.frag` for fragment/pixel processing
-   - Changes take effect on next program run (shaders are loaded at runtime)
-
-3. **Adjust terrain generation:**
-   - Modify `TerrainGenerator.h` for different terrain algorithms
-   - Adjust noise parameters for different terrain styles
-   - Change block type assignments for varied landscapes
-
-4. **Modify chunk settings:**
-   - Adjust chunk render distance in `Game.cpp` (ChunkManager initialization)
-   - Modify chunk dimensions in `Chunk.h` (currently 16x256x16)
-   - Update mesh generation logic for different block arrangements
-
-## Learning Resources
-
-### OpenGL & Graphics Programming
-- **LearnOpenGL**: https://learnopengl.com/ - Comprehensive OpenGL tutorial
-- **OpenGL Reference**: https://docs.gl/ - OpenGL function documentation
-- **GLFW Documentation**: https://www.glfw.org/documentation.html
-- **GLM Documentation**: https://github.com/g-truc/glm/blob/master/manual.md
-
-### Voxel Engine Development
-- **Minecraft Rendering**: Understanding chunk-based systems
-- **Perlin Noise**: https://en.wikipedia.org/wiki/Perlin_noise
-- **Voxel Engines**: Research papers on efficient voxel rendering
-
-### Library References
-- **Assimp**: https://assimp-docs.readthedocs.io/ - 3D model loading
-- **OpenGL Shading Language (GLSL)**: Shader programming reference
-
-### Game Development
-- **Game Programming Patterns**: http://gameprogrammingpatterns.com/
-- **Real-Time Rendering**: Advanced rendering techniques
-
-## Project Timeline & Milestones
-
-### Completed Features ✅
-- [x] Project setup with all dependencies
-- [x] Window creation and OpenGL context
-- [x] Camera system with first-person controls
-- [x] Sprint and crouch movement modes
-- [x] Physics system (gravity, jumping, collision)
-- [x] Shader system (vertex, fragment, shadow shaders)
-- [x] Phong lighting implementation
-- [x] Shadow mapping with PCF filtering
-- [x] Day/night cycle with dynamic lighting
-- [x] Skybox with sun, moon, and stars
-- [x] Block data structure with multiple types
-- [x] Biome system (Grassland, Desert)
-- [x] Chunk system (16x64x16 blocks)
-- [x] Chunk manager with render distance
-- [x] Perlin noise terrain generation with world seeds
-- [x] Tree generation system
-- [x] Bedrock layer (indestructible bottom)
-- [x] Mesh generation from block data
-- [x] Dynamic chunk loading/unloading
-- [x] Input handling (keyboard and mouse)
-- [x] Block destruction with raycasting
-- [x] Player hand rendering with animations
-- [x] Crosshair display
-
-### In Development 🚧
-- [ ] Texture mapping for blocks
-- [ ] Block placement system
-- [ ] Inventory system
-- [ ] More biome types
-
-### Future Considerations 💭
-- [ ] Physics integration
-- [ ] Audio system
-
-## Performance Metrics
-
-### Current Performance Characteristics
-- **Render Distance**: 20 chunks (configurable)
-- **Blocks per Chunk**: 16 × 256 × 16 = 65,536 blocks
-- **Vertex Count**: Varies based on visible faces (face culling implemented)
-- **Target Frame Rate**: 60+ FPS on modern hardware
-
-### Optimization Techniques Used
-- **Face Culling**: Only renders visible block faces
-- **Chunk Batching**: Each chunk is a single draw call
-- **Frustum Culling**: Only renders chunks in view (chunk-level)
-- **Efficient Data Structures**: Optimized block storage
-
-## Troubleshooting Guide
-
-### Application won't start
-1. Verify all DLLs are in the output directory (`bin/Debug/` or `bin/Release/`)
-2. Check that you're running the correct platform configuration (x64)
-3. Ensure graphics drivers are up to date
-4. Verify OpenGL 4.3+ support on your system
-
-### Black screen or no terrain visible
-1. Check console output for shader compilation errors
-2. Verify shader files exist in `resources/shaders/`
-3. Ensure camera position is correct (default: 0, 20, 0)
-4. Check that chunks are being generated (debug output)
-
-### Low FPS or performance issues
-1. Reduce render distance in `Game.cpp` (ChunkManager initialization)
-2. Build in Release configuration instead of Debug
-3. Update graphics drivers
-4. Check GPU utilization in Task Manager
-5. Reduce chunk generation frequency
-
-### Compilation errors
-1. Verify all include paths are correct
-2. Check that all dependencies are properly installed
-3. Clean solution and rebuild (`Build > Clean Solution`, then `Build > Rebuild Solution`)
-4. Ensure C++17 standard is selected in project properties
-
-## Author
-
-Morgan McGovern - COMP3016 Coursework 2
-
-## Acknowledgments
-
-- **LearnOpenGL.com** - For excellent OpenGL tutorials
-- **GLFW, GLAD, GLM, Assimp** - Open source libraries that made this possible
-- **Perlin Noise Algorithm** - Ken Perlin's procedural generation technique
-- **University of Plymouth** - COMP3016 Course Materials
-
-## License
-
-This is a coursework project for COMP3016 at the University of Plymouth.
+A procedurally generated voxel terrain engine built with OpenGL 4.3, featuring dynamic lighting, shadow mapping, multi-biome terrain generation, and interactive gameplay elements.
 
 ---
 
-**Last Updated**: November 2025  
-**Project Status**: Active Development  
+## 📹 Video Demonstration
+
+**YouTube Link:** [INSERT YOUR UNLISTED YOUTUBE LINK HERE]
+
+## 🎮 Gameplay Description
+
+This is a first-person voxel exploration game with procedurally generated infinite terrain. Players spawn in a world featuring three distinct biomes (Grassland, Birch Forest, Desert) with dynamic day/night cycles and realistic shadows.
+
+### Core Gameplay Features
+- **Terrain Exploration**: Infinite procedurally generated world with seamless chunk streaming
+- **Block Destruction**: Left-click to break blocks (5-block reach) with raycast detection
+- **Movement System**: WASD controls with sprint (Ctrl), crouch (Shift), and jump (Space)
+- **Day/Night Cycle**: 360-second cycle with moving sun/moon and dynamic lighting
+- **Interactive GUI**: Press 'G' to adjust FOV, mouse sensitivity, time speed, and pet scale
+- **AI Mobs**: Press 'M' to spawn wandering NPCs (Ben model) with pathfinding
+- **Pet Companion**: Followable pet (Tom model) that can sit/stand with 'C' key
+- **Hotbar System**: Number keys 1-9 to select different block types
+
+### Player Controls
+| Input | Action |
+|-------|--------|
+| **W/A/S/D** | Move forward/left/backward/right |
+| **Mouse** | Look around (first-person view) |
+| **Left Click** | Destroy block |
+| **Space** | Jump |
+| **Left Ctrl** | Toggle sprint |
+| **Left Shift** | Crouch |
+| **G** | Toggle GUI |
+| **M** | Spawn mob |
+| **C** | Toggle pet sit/stand |
+| **1-9** | Select hotbar slot |
+| **ESC** | Exit |
+
+---
+
+## 📦 Dependencies Used
+
+### Core Libraries
+1. **GLFW 3.3.8** - Window management and input handling
+   - Cross-platform window creation
+   - Keyboard/mouse callbacks
+   - OpenGL context initialization
+
+2. **GLAD (OpenGL 4.3 Core)** - OpenGL function loader
+   - Dynamic loading of modern OpenGL functions
+   - Core profile support for optimal performance
+
+3. **GLM 0.9.9.8** - Mathematics library (header-only)
+   - Vector/matrix operations (vec3, mat4)
+   - Camera transformations (lookAt, perspective)
+   - Used throughout for all 3D math
+
+4. **Assimp 5.3.1** - 3D model loading
+   - FBX model importing (TomAdult.fbx for pet, Ben for mobs)
+   - Mesh processing and vertex data extraction
+
+5. **Windows GDI+** - Image loading
+   - PNG/JPG texture loading without external dependencies
+
+### Build Environment
+- **Visual Studio 2022** (Platform Toolset v143)
+- **C++17 Standard**
+- **Windows SDK** for platform-specific functionality
+
+---
+
+## 🤖 Use of AI
+
+- **Code Generation**: Used AI to generate most of the code
+- **Debugging**: Used AI to read through errors and fix any bugs found
+- **Documentation**: Used to setup ReadMe structure. Used to write code comments
+
+### Problems encountered
+
+- The AI would sometimes get stuck in a loop giving me 2 broken solutions on repeat until I told it to try something different.
+- Sometimes would not understand what I wanted it to do for the procedural terrain generation so I had to give up.
+
+### What went well
+
+- In the first coursework the AI struggled because I was using a recently updated version of SDL, this time I did not encounter this problem as the AI had a lot of training on the used dependencies. This made the development very quick with most features only taking around an hour maximum to develop.
+
+---
+
+## 🏗️ Game Programming Patterns
+
+### 1. **Component Pattern**
+**Location**: Camera, Shader, ChunkManager classes
+
+Separates concerns into independent, reusable components. Each class handles one specific responsibility.
+
+```cpp
+class Game {
+    std::unique_ptr<Camera> m_camera;         // View transformations
+    std::unique_ptr<Shader> m_shader;         // Shader management
+    std::unique_ptr<ChunkManager> m_chunkManager; // World management
+};
+```
+
+### 2. **Object Pool Pattern**
+**Location**: `ChunkManager.h` (lines 26-84)
+
+Reuses chunk objects instead of constant allocation/deallocation. Chunks are loaded within render distance and unloaded when far away, preventing memory fragmentation.
+
+### 3. **Factory Pattern**
+**Location**: `TerrainGenerator.h` (lines 495-623)
+
+`GenerateChunk()` encapsulates complex chunk creation logic into a single entry point. Handles biome determination, height generation, and block placement.
+
+### 4. **Observer Pattern**
+**Location**: `main.cpp` (lines 23-59)
+
+GLFW callbacks notify the game of input events. Mouse and keyboard events propagate to the appropriate handlers without tight coupling.
+
+### 5. **Singleton Pattern**
+**Location**: `TerrainGenerator.h` (lines 18-34)
+
+Static world seed ensures consistent terrain generation across all chunk boundaries. Single source of truth for procedural generation.
+
+### 6. **State Pattern**
+**Location**: `Game.cpp` (lines 166-173, 253-257)
+
+Different input handling based on game state. When GUI is open (`m_showGUI == true`), gameplay inputs are disabled and GUI interactions are enabled.
+
+---
+
+## ⚙️ Game Mechanics Implementation
+
+### 1. Procedural Terrain Generation
+**How it works**: Multi-octave Perlin noise creates natural-looking height variations. Biomes are determined by hashing chunk coordinates into regions. The way it is currently implemented does not work very well with issues with smooth chunk variation, currently there are lots of height variation issues.
+
+**Code** (`TerrainGenerator.h`):
+```cpp
+float baseHeight = PerlinNoise(worldX, worldZ);      // Large features
+float hills = HillsNoise(worldX, worldZ);            // Medium hills
+float detail = DetailNoise(worldX, worldZ);          // Small details
+
+float combined = (baseHeight + hills + detail + 1.5f) / 3.5f;
+float smooth = smoothstep(smoothstep(combined));     // Double smoothstep
+int terrainHeight = 12 + (int)(smooth * 16.0f);      // Map to blocks
+```
+
+### 2. Shadow Mapping with PCF
+**How it works**: Two-pass rendering. First pass renders from light's perspective to depth texture. Second pass checks if fragment is in shadow using 3×3 PCF filtering.
+
+**Code** (`basic.frag`):
+```cpp
+float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir) {
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w * 0.5 + 0.5;
+    float bias = max(0.001 * (1.0 - dot(normal, lightDir)), 0.0005);
+    
+    // PCF: Sample 3x3 grid
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    for(int x = -1; x <= 1; ++x) {
+        for(int y = -1; y <= 1; ++y) {
+            float depth = texture(shadowMap, projCoords.xy + vec2(x,y) * texelSize).r;
+            shadow += (projCoords.z - bias > depth) ? 1.0 : 0.0;
+        }
+    }
+    return shadow / 9.0;
+}
+```
+
+### 3. Chunk Streaming System
+**How it works**: Only loads chunks within configurable render distance. Circular distance calculation ensures smooth loading. Chunks unload when camera moves away.
+
+**Code** (`ChunkManager.h`):
+```cpp
+void Update(const Camera& camera) {
+    int camChunkX = (int)floor(camera.Position.x / CHUNK_SIZE);
+    int camChunkZ = (int)floor(camera.Position.z / CHUNK_SIZE);
+    
+    for (int x = camChunkX - renderDistance; x <= camChunkX + renderDistance; x++) {
+        for (int z = camChunkZ - renderDistance; z <= camChunkZ + renderDistance; z++) {
+            float distance = sqrt(dx*dx + dz*dz);
+            if (distance <= m_renderDistance && !chunkExists) {
+                CreateChunk(x, z);
+            }
+        }
+    }
+    // Unload distant chunks...
+}
+```
+
+### 4. Dynamic Day/Night Cycle
+**How it works**: Time progresses continuously. Sun/moon positions calculated using trigonometry. Light color transitions between warm daylight and cool moonlight.
+
+**Code** (`Game.cpp` lines 891-983):
+```cpp
+m_timeOfDay += deltaTime * m_timeSpeed / 360.0f;
+float sunAngle = m_timeOfDay * 2.0f * PI;
+float sunHeight = sin(sunAngle);
+float intensity = clamp((sunHeight + 0.3f) / 1.3f, 0.1f, 1.0f);
+
+m_lightColor = (sunHeight > 0) 
+    ? glm::vec3(1.0f, 0.95f, 0.8f) * intensity   // Warm day
+    : glm::vec3(0.6f, 0.7f, 1.0f) * intensity;   // Cool night
+```
+
+### 5. Block Raycasting
+**How it works**: Ray steps along camera's forward vector checking for solid blocks every 0.1 units. Maximum reach of 5 blocks. Triggers hand animation on hit.
+
+**Code** (`Game.cpp` lines 704-764):
+```cpp
+glm::vec3 rayPos = m_camera->Position;
+glm::vec3 rayDir = m_camera->Front;
+
+for (float dist = 0.0f; dist < 5.0f; dist += 0.1f) {
+    glm::vec3 checkPos = rayPos + rayDir * dist;
+    if (m_chunkManager->IsSolid(checkPos)) {
+        m_chunkManager->DestroyBlock(checkPos);
+        m_isSwinging = true;
+        break;
+    }
+}
+```
+
+### 6. Physics & Collision Detection
+**How it works**: Gravity applied every frame. Ground detection at feet position. Four-corner collision checks for horizontal movement prevent clipping. Currently issues when the player is trying to climb a staircase and there is a block above the player, they can get stuck inside of a block or be teleported back to where they were.
+
+**Code** (`Game.cpp` lines 336-449):
+```cpp
+// Apply gravity
+m_camera->Velocity.y += GRAVITY * deltaTime;
+m_camera->Position += m_camera->Velocity * deltaTime;
+
+// Ground collision
+glm::vec3 feetPos = m_camera->Position - glm::vec3(0, PLAYER_EYE_HEIGHT, 0);
+if (m_chunkManager->IsSolid(feetPos.x, feetPos.y - 0.1f, feetPos.z)) {
+    m_camera->IsGrounded = true;
+    m_camera->Velocity.y = 0.0f;
+    m_camera->Position.y = floor(feetPos.y) + PLAYER_EYE_HEIGHT;
+}
+```
+
+---
+
+## 🛡️ Exception Handling & Test Cases
+
+### Exception Handling
+
+#### 1. Shader Compilation Errors
+**Location**: `Game.cpp` lines 68-77
+```cpp
+try {
+    m_shader = std::make_unique<Shader>("resources/shaders/basic.vert", 
+                                        "resources/shaders/basic.frag");
+} catch (const std::exception& e) {
+    std::cerr << "Shader load failed: " << e.what() << std::endl;
+    return false;
+}
+```
+
+#### 2. Model Loading Safety
+**Location**: `Game.cpp` lines 2204-2220
+```cpp
+const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate);
+if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
+    std::cerr << "ERROR::ASSIMP::" << importer.GetErrorString() << std::endl;
+    return;
+}
+```
+
+#### 3. OpenGL Resource Validation
+**Location**: `Game.cpp` lines 820-879
+```cpp
+if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+    std::cerr << "ERROR: Shadow framebuffer incomplete!" << std::endl;
+}
+```
+
+#### 4. Bounds Checking
+**Location**: `Chunk.h`
+```cpp
+void Chunk::SetBlock(int x, int y, int z, BlockType type) {
+    if (x < 0 || x >= CHUNK_SIZE || y < 0 || y >= CHUNK_HEIGHT || 
+        z < 0 || z >= CHUNK_SIZE) return;
+    blocks[x][y][z].type = type;
+}
+```
+
+#### 5. Memory Management
+**Location**: `Game.h`, `Game.cpp` lines 805-815
+- RAII with `std::unique_ptr` for automatic cleanup
+- Explicit OpenGL resource deletion in destructor
+
+### Test Cases
+
+| # | Test | Expected Result | Status |
+|---|------|----------------|--------|
+| 1 | **Terrain Consistency** - Same seed generates identical chunks | ✅ Reproducible terrain | **PASSED** |
+| 2 | **Chunk Boundaries** - No seams between adjacent chunks | ✅ Seamless transitions | **PASSED** |
+| 3 | **Collision Detection** - Camera doesn't clip through blocks | ⚠️ Works on surface | **PARTIAL** - Underground glitches |
+| 4 | **Chunk Streaming** - Load/unload based on distance | ✅ Only nearby chunks in memory | **PASSED** |
+| 5 | **Raycast Accuracy** - Block destruction hits correct position | ✅ Accurate targeting | **PASSED** |
+| 6 | **Shadow Direction** - Shadows opposite to sun/moon | ✅ Directionally correct | **PASSED** |
+| 7 | **GUI Interaction** - Sliders update parameters in real-time | ✅ Immediate feedback | **PASSED** |
+| 8 | **Biome Blending** - Smooth transitions at boundaries | ⚠️ Partial blending | **PARTIAL** - Needs refinement |
+| 9 | **Memory Stability** - No leaks during extended play | ✅ Stable memory | **PASSED** |
+| 10 | **Frame Rate** - Maintain 60+ FPS | ⚠️ 60+ on recommended hardware | **PARTIAL** - Lower-end systems near 60 |
+
+**Summary**: 7/10 Passed, 3/10 Partial, 0/10 Failed
+
+**Known Issues**:
+- Collision detection has rare underground glitches (player can get stuck in blocks)
+- Biome blending incomplete (transitions can be abrupt)
+- Performance on systems below minimum specs near but not quite 60 FPS
+
+---
+
+## 📊 Technical Architecture
+
+### Rendering Pipeline
+1. **Shadow Pass**: Render scene from light's perspective to 8192×8192 depth texture
+2. **Main Pass**: Render scene from camera with Phong lighting + shadow sampling
+3. **GUI Pass**: Overlay 2D elements using orthographic projection
+
+### Data Flow
+```
+main.cpp → Game → Camera/Shader/ChunkManager
+         → ChunkManager → TerrainGenerator → Chunk → Blocks (16×256×16)
+         → Input → Camera Movement → Physics → Collision
+```
+
+### Optimization Techniques
+- **Face Culling**: Only visible block faces rendered (interior faces hidden)
+- **Chunk Batching**: Single draw call per chunk (~65,536 blocks)
+- **Frustum Culling**: Chunk-level visibility testing
+- **Memory Pooling**: Chunk reuse prevents fragmentation
+- **Smart Pointers**: RAII for automatic resource management
+
+### Performance Metrics
+- **Render Distance**: 20 chunks (configurable)
+- **Blocks per Chunk**: 16 × 256 × 16 = 65,536
+- **Shadow Resolution**: 8192×8192 with PCF
+- **Target FPS**: 60+ on recommended hardware
+
+---
+
+## 🎓 Evaluation & Reflection
+
+### What Was Achieved ✅
+
+**Technical Accomplishments**:
+1. **Complete OpenGL rendering pipeline** with modern 4.3 Core Profile
+2. **Advanced shadow mapping** with 8192×8192 resolution and PCF filtering
+3. **Procedural terrain generation** with three distinct biomes and reproducible seeds
+4. **Dynamic day/night cycle** with moving celestial bodies and realistic lighting
+5. **Interactive GUI system** with real-time parameter adjustment
+6. **AI-controlled entities** (mobs and pet companion)
+7. **Robust architecture** using multiple design patterns
+8. **Efficient chunk streaming** with stable 60+ FPS on recommended hardware
+
+**Learning Outcomes**:
+- Better understanding of how to use AI to develop the features I give it. What to tell it and what is useless information
+- Better at debugging with AI, If the AI gets stuck in a loop I know know how to get it out of the loop.
+
+### What Could Be Improved 🔄
+
+**If Starting Over**:
+
+- I would make the PTG more complex from the start instead of making it basic and then trying to improve it later on, as this caused a lot of issues and was the main reason that it is currently not working perfectly
+- I would improve the chunk manager so that it was better for performance. Currently it renders each chunk and stops culling faces if they are on a chunk border, if I fixed this issue it would improve performance for lower end systems.
+
+### What Went Well 🌟
+
+1. **Incremental Development**: I developed the game in stages seperating features into the different stages instead of trying to develop a lot of different features all at the same time.
+2. **Performance Focus**: I thought about performance from the start instead of coming back to it at a later point.
+
+### Final Thoughts 💭
+
+This project was a lot of fun as it gave me a lot of freedom to do exactly what I wanted and made me think about features I usually wouldn't pay attention to, such as day/night system with live shadow casting. I was also able to use the AI to make features that I had no idea on how to develop but had ideas for, for example the texture of the blocks I had a random thought to use noise to add textures instead of each block just being one solid colour.
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Visual Studio 2022 with C++ Desktop Development
+- Windows 10/11 (64-bit)
+- GPU with OpenGL 4.3+ support
+
+### Build Instructions
+1. Open `COMP3016-CW2.sln` in Visual Studio 2022
+2. Select `x64` platform and `Debug` or `Release` configuration
+3. Press `F7` to build
+4. Press `F5` to run
+
+### Project Structure
+```
+COMP3016-CW2/
+├── include/          # Header files (Game.h, Camera.h, Chunk.h, etc.)
+├── src/              # Source files (main.cpp, Game.cpp)
+├── resources/        # Shaders, models, textures
+├── dependencies/     # GLFW, GLAD, GLM, Assimp
+└── bin/              # Build output
+```
+
+---
+
+## 📄 License
+
+This is a coursework project for COMP3016 at the University of Plymouth.
+
+**Author**: Morgan McGovern  
+**Course**: COMP3016
 **Build Status**: ✅ Compiling Successfully
