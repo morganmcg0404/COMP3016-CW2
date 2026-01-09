@@ -7,7 +7,7 @@ A procedurally generated voxel terrain engine built with OpenGL 4.3, featuring d
 
 ## 📹 Video Demonstration
 
-**YouTube Link:** [INSERT YOUR UNLISTED YOUTUBE LINK HERE]
+**YouTube Link:** https://www.youtube.com/watch?v=M-ZeBNPMJPQ
 
 ## 🎮 Gameplay Description
 
@@ -77,13 +77,11 @@ This is a first-person voxel exploration game with procedurally generated infini
 - **Debugging**: Used AI to read through errors and fix any bugs found
 - **Documentation**: Used to setup ReadMe structure. Used to write code comments
 
-### Problems encountered
-
+### Problems Encountered
 - The AI would sometimes get stuck in a loop giving me 2 broken solutions on repeat until I told it to try something different.
 - Sometimes would not understand what I wanted it to do for the procedural terrain generation so I had to give up.
 
-### What went well
-
+### What Went Well
 - In the first coursework the AI struggled because I was using a recently updated version of SDL, this time I did not encounter this problem as the AI had a lot of training on the used dependencies. This made the development very quick with most features only taking around an hour maximum to develop.
 
 ---
@@ -347,8 +345,6 @@ main.cpp → Game → Camera/Shader/ChunkManager
 ## 🎓 Evaluation & Reflection
 
 ### What Was Achieved ✅
-
-**Technical Accomplishments**:
 1. **Complete OpenGL rendering pipeline** with modern 4.3 Core Profile
 2. **Advanced shadow mapping** with 8192×8192 resolution and PCF filtering
 3. **Procedural terrain generation** with three distinct biomes and reproducible seeds
@@ -358,24 +354,19 @@ main.cpp → Game → Camera/Shader/ChunkManager
 7. **Robust architecture** using multiple design patterns
 8. **Efficient chunk streaming** with stable 60+ FPS on recommended hardware
 
-**Learning Outcomes**:
+**Learning Outcomes**
 - Better understanding of how to use AI to develop the features I give it. What to tell it and what is useless information
 - Better at debugging with AI, If the AI gets stuck in a loop I know know how to get it out of the loop.
 
 ### What Could Be Improved 🔄
-
-**If Starting Over**:
-
 - I would make the PTG more complex from the start instead of making it basic and then trying to improve it later on, as this caused a lot of issues and was the main reason that it is currently not working perfectly
 - I would improve the chunk manager so that it was better for performance. Currently it renders each chunk and stops culling faces if they are on a chunk border, if I fixed this issue it would improve performance for lower end systems.
 
 ### What Went Well 🌟
-
 1. **Incremental Development**: I developed the game in stages seperating features into the different stages instead of trying to develop a lot of different features all at the same time.
 2. **Performance Focus**: I thought about performance from the start instead of coming back to it at a later point.
 
 ### Final Thoughts 💭
-
 This project was a lot of fun as it gave me a lot of freedom to do exactly what I wanted and made me think about features I usually wouldn't pay attention to, such as day/night system with live shadow casting. I was also able to use the AI to make features that I had no idea on how to develop but had ideas for, for example the texture of the blocks I had a random thought to use noise to add textures instead of each block just being one solid colour.
 
 ---
